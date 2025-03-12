@@ -146,11 +146,11 @@ OpenAndConfSSDPNotifySocket(struct lan_addr_s *iface)
 	unsigned char loopchar = 0;
 	uint8_t ttl = 4;
 #ifdef HAVE_STRUCT_IP_MREQN
-	struct ip_mreqn imr;
+	struct ip_mreqn imr{};
 #else
-	struct in_addr mc_if;
+	struct in_addr mc_if{};
 #endif
-	struct sockaddr_in sockname;
+	struct sockaddr_in sockname{};
 	
 	s = socket(PF_INET, SOCK_DGRAM, 0);
 	if (s < 0)

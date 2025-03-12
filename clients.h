@@ -54,6 +54,7 @@ enum match_types {
 };
 
 enum client_types {
+	EUnknownClient = 0,
 	EXbox = 1,
 	EPS3,
 	ECling,

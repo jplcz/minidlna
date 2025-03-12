@@ -249,44 +249,44 @@ configure_file(config.h.in config.h)
 
 target_sources(
   minidlnad
-  PRIVATE minidlna.c
-          upnphttp.c
-          upnpdescgen.c
-          upnpsoap.c
-          upnpreplyparse.c
-          minixml.c
-          clients.c
-          getifaddr.c
-          process.c
-          upnpglobalvars.c
-          options.c
-          minissdp.c
-          uuid.c
-          upnpevents.c
-          sql.c
-          utils.c
-          metadata.c
-          scanner.c
-          monitor.c
-          tivo_utils.c
-          tivo_beacon.c
-          tivo_commands.c
-          playlist.c
-          image_utils.c
-          albumart.c
-          log.c
-          containers.c
-          avahi.c
-          tagutils/tagutils.c)
+  PRIVATE minidlna.cpp
+          upnphttp.cpp
+          upnpdescgen.cpp
+          upnpsoap.cpp
+          upnpreplyparse.cpp
+          minixml.cpp
+          clients.cpp
+          getifaddr.cpp
+          process.cpp
+          upnpglobalvars.cpp
+          options.cpp
+          minissdp.cpp
+          uuid.cpp
+          upnpevents.cpp
+          sql.cpp
+          utils.cpp
+          metadata.cpp
+          scanner.cpp
+          monitor.cpp
+          tivo_utils.cpp
+          tivo_beacon.cpp
+          tivo_commands.cpp
+          playlist.cpp
+          image_utils.cpp
+          albumart.cpp
+          log.cpp
+          containers.cpp
+          avahi.cpp
+          tagutils/tagutils.cpp)
 
 if(HAVE_SYS_INOTIFY_H)
-  target_sources(minidlnad PRIVATE monitor_inotify.c)
+  target_sources(minidlnad PRIVATE monitor_inotify.cpp)
 endif()
 
 if(HAVE_KQUEUE)
-  target_sources(minidlnad PRIVATE kqueue.c monitor_kqueue.c)
+  target_sources(minidlnad PRIVATE kqueue.cpp monitor_kqueue.cpp)
 else()
-  target_sources(minidlnad PRIVATE select.c)
+  target_sources(minidlnad PRIVATE select.cpp)
 endif()
 
 target_include_directories(minidlnad PRIVATE ${CMAKE_CURRENT_BINARY_DIR})

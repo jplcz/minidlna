@@ -26,7 +26,7 @@
 
 struct client_type_s client_types[] =
 {
-	{ 0,
+	{ EUnknownClient,
 	  0,
 	  "Unknown",
 	  NULL,
@@ -64,7 +64,7 @@ struct client_type_s client_types[] =
 	/* User-Agent: DLNADOC/1.50 SEC_HHP_[PC]LPC001/1.0  MS-DeviceCaps/1024 */
 	/* This is AllShare running on a PC.  We don't want to respond with Samsung
 	 * capabilities, or Windows (and AllShare) might get grumpy. */
-	{ 0,
+	{ EUnknownClient,
 	  FLAG_DLNA,
 	  "AllShare",
 	  "SEC_HHP_[PC]",
@@ -294,14 +294,14 @@ struct client_type_s client_types[] =
 	  EUserAgent
 	},
 
-	{ 0,
+	{ EUnknownClient,
 	  FLAG_DLNA | FLAG_MIME_AVI_AVI,
 	  "Windows",
 	  "FDSSDP",
 	  EUserAgent
 	},
 
-	{ 0,
+	{ EUnknownClient,
 	  0,
 	  "TiVo",
 	  "TvHttpClient",
@@ -322,7 +322,7 @@ struct client_type_s client_types[] =
 	  EUserAgent
 	},
 
-	{ 0, 0, NULL, 0 }
+	{ }
 };
 
 struct client_cache_s clients[CLIENT_CACHE_SLOTS];

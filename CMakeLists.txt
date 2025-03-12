@@ -306,3 +306,4 @@ target_link_libraries(minidlnad PRIVATE PkgConfig::vorbis)
 target_link_libraries(minidlnad PRIVATE PkgConfig::flac)
 
 target_compile_features(minidlnad PRIVATE cxx_std_20)
+target_compile_options(minidlnad PRIVATE -Wall -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64)

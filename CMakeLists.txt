@@ -6,6 +6,11 @@ include(CheckSourceCompiles)
 include(GNUInstallDirs)
 include(cmake/get_cpm.cmake)
 
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+add_compile_options(-fstack-protector-all)
+add_definitions(-D_FORTIFY_SOURCE=2)
+add_link_options(-Wl,-z,relro)
+
 find_package(Threads REQUIRED)
 find_package(PkgConfig)
 
@@ -306,4 +311,7 @@ target_link_libraries(minidlnad PRIVATE PkgConfig::vorbis)
 target_link_libraries(minidlnad PRIVATE PkgConfig::flac)
 
 target_compile_features(minidlnad PRIVATE cxx_std_20)
-target_compile_options(minidlnad PRIVATE -Wall -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64)
+target_compile_options(minidlnad PRIVATE -Wall)
+target_compile_options(minidlnad PRIVATE -fstack-protector-strong)
+target_compile_definitions(minidlnad PRIVATE _LARGEFILE_SOURCE
+                                             _FILE_OFFSET_BITS=64)

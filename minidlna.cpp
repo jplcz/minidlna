@@ -98,6 +98,8 @@
 #include "tivo_utils.h"
 #include "avahi.h"
 
+#include <spdlog/spdlog.h>
+
 #if SQLITE_VERSION_NUMBER < 3005001
 # warning "Your SQLite3 library appears to be too old!  Please use 3.5.1 or newer."
 # define sqlite3_threadsafe() 0
@@ -1103,7 +1105,7 @@ start_monitor()
 /* === main === */
 /* process HTTP or SSDP requests */
 int
-main(int argc, char **argv)
+real_main(int argc, char **argv)
 {
 	int ret, i;
 	int shttpl = -1;
@@ -1379,3 +1381,11 @@ shutdown:
 	exit(EXIT_SUCCESS);
 }
 
+int main(int argc, char ** argv) {
+	try {
+		return real_main(argc, argv);
+	} catch(std::exception& ex) {
+		fprintf(stderr, "Terminated because of: %s\n", ex.what());
+		exit(EXIT_FAILURE);
+	}
+}

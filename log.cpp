@@ -28,7 +28,25 @@
 #include "upnpglobalvars.h"
 #include "log.h"
 
-static FILE *log_fp = NULL;
+#include <spdlog/spdlog.h>
+
+#ifdef CONFIG_LOG_SYSTEMD
+#include <spdlog/sinks/systemd_sink.h>
+#endif
+
+#ifdef CONFIG_LOG_SYSLOG
+#include <spdlog/sinks/syslog_sink.h>
+#endif
+
+#ifdef CONFIG_LOG_ANDROID
+#include <spdlog/sinks/android_sink.h>
+#endif
+
+#include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/sinks/dist_sink.h>
+#include <spdlog/sinks/basic_file_sink.h>
+
+static std::shared_ptr<spdlog::sinks::basic_file_sink_mt> log_fp_sink;
 static const int _default_log_level = E_WARN;
 int log_level[L_MAX];
 
@@ -42,41 +60,34 @@ const char *facility_name[] = {
 	"http",
 	"ssdp",
 	"tivo",
-	0
-};
+	0};
 
 const char *level_name[] = {
-	"off",					// E_OFF
-	"fatal",				// E_FATAL
-	"error",				// E_ERROR
-	"warn",					// E_WARN
-	"info",					// E_INFO
-	"debug",				// E_DEBUG
-	"maxdebug",				// E_MAXDEBUG
-	0
-};
+	"off",		// E_OFF
+	"fatal",	// E_FATAL
+	"error",	// E_ERROR
+	"warn",		// E_WARN
+	"info",		// E_INFO
+	"debug",	// E_DEBUG
+	"maxdebug", // E_MAXDEBUG
+	0};
 
-void
-log_close(void)
+void log_close(void)
 {
-	if (log_fp)
-		fclose(log_fp);
+	if (log_fp_sink)
+		log_fp_sink->flush();
 }
 
-void
-log_reopen(void)
+void log_reopen(void)
 {
-	if (log_path[0] && log_fp)
+	if (log_path[0] && log_fp_sink)
 	{
-		char logfile[1048];
-		snprintf(logfile, sizeof(logfile), "%s/" LOGFILE_NAME, log_path);
-		fclose(log_fp);
-		log_fp = fopen(logfile, "a");
+		log_fp_sink->truncate();
 		DPRINTF(E_INFO, L_GENERAL, "Reopened log file\n");
 	}
 }
 
-int find_matching_name(const char* str, const char* names[])
+int find_matching_name(const char *str, const char *names[])
 {
 	const char *start;
 	int level, c;
@@ -86,18 +97,17 @@ int find_matching_name(const char* str, const char* names[])
 
 	start = strpbrk(str, ",=");
 	c = start ? start - str : strlen(str);
-	for (level = 0; names[level] != 0; level++) {
+	for (level = 0; names[level] != 0; level++)
+	{
 		if (!strncasecmp(names[level], str, c))
 			return level;
 	}
 	return -1;
 }
 
-int
-log_init(const char *debug)
+int log_init(const char *debug)
 {
 	int i;
-	FILE *fp = NULL;
 
 	int level = find_matching_name(debug, level_name);
 	int default_log_level = (level == -1) ? _default_log_level : level;
@@ -105,89 +115,133 @@ log_init(const char *debug)
 	for (i = 0; i < L_MAX; i++)
 		log_level[i] = default_log_level;
 
+	auto primary_sink = std::make_shared<spdlog::sinks::dist_sink_mt>();
+
+	if (!debug)
+	{
+		// Use stdio logger in debug launch mode
+		// as used will probably want to see messages in console
+#ifdef CONFIG_LOG_SYSTEMD
+		auto sink = std::make_shared<spdlog::sinks::systemd_sink_mt>("minidlna");
+		sink->set_level(spdlog::level::trace);
+		primary_sink->add_sink(sink);
+#elif defined(CONFIG_LOG_SYSLOG)
+		auto sink = std::make_shared<spdlog::sinks::syslog_sink_mt>("minidlna", 0, LOG_USER, true);
+		sink->set_level(spdlog::level::trace);
+		primary_sink->add_sink(sink);
+#elif defined(CONFIG_LOG_ANDROID)
+		auto sink = std::make_shared<spdlog::sinks::android_sink_mt>("minidlna");
+		sink->set_level(spdlog::level::trace);
+		primary_sink->add_sink(sink);
+#endif
+	}
+
+	if (primary_sink->sinks().empty())
+	{
+		auto sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+		sink->set_level(spdlog::level::trace);
+		primary_sink->add_sink(sink);
+	}
+
+	spdlog::set_default_logger(std::make_shared<spdlog::logger>("minidlna", primary_sink));
+
 	if (debug)
 	{
 		const char *rhs, *lhs, *nlhs;
 		int level, facility;
 
 		rhs = nlhs = debug;
-		while (rhs && (rhs = strchr(rhs, '='))) {
+		while (rhs && (rhs = strchr(rhs, '=')))
+		{
 			rhs++;
 			level = find_matching_name(rhs, level_name);
-			if (level == -1) {
+			if (level == -1)
+			{
 				DPRINTF(E_WARN, L_GENERAL, "unknown level in debug string: %s", debug);
 				continue;
 			}
 
 			lhs = nlhs;
 			rhs = nlhs = strchr(rhs, ',');
-			do {
-				if (*lhs==',') lhs++;
+			do
+			{
+				if (*lhs == ',')
+					lhs++;
 				facility = find_matching_name(lhs, facility_name);
-				if (facility == -1) {
+				if (facility == -1)
+				{
 					DPRINTF(E_WARN, L_GENERAL, "unknown debug facility in debug string: %s", debug);
-				} else {
+				}
+				else
+				{
 					log_level[facility] = level;
 				}
 
 				lhs = strpbrk(lhs, ",=");
-			} while (*lhs && *lhs==',');
+			} while (*lhs && *lhs == ',');
 		}
 	}
 
 	if (log_path[0])
 	{
-		char logfile[1048];
-		snprintf(logfile, sizeof(logfile), "%s/" LOGFILE_NAME, log_path);
-		if (!(fp = fopen(logfile, "a")))
-			return -1;
+		std::string path(log_path);
+		path.append("/");
+		path.append(LOGFILE_NAME);
+		log_fp_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(path, true);
+		log_fp_sink->set_level(spdlog::level::trace);
+		primary_sink->add_sink(log_fp_sink);
 	}
-	log_fp = fp;
 
 	return 0;
 }
 
-void
-log_err(int level, enum _log_facility facility, const char *fname, int lineno, const char *fmt, ...)
+void log_err(int level, enum _log_facility facility, const char *fname, int lineno, const char *fmt, ...)
 {
 	va_list ap;
 
-	if (level && level>log_level[facility] && level>E_FATAL)
+	if (level && level > log_level[facility] && level > E_FATAL)
 		return;
 
-	if (!log_fp)
-		log_fp = stdout;
+	spdlog::level::level_enum spdlog_level = spdlog::level::trace;
 
-	// timestamp
-	if (!GETFLAG(SYSTEMD_MASK))
-	{
-		time_t t;
-		struct tm *tm;
-		t = time(NULL);
-		tm = localtime(&t);
-		fprintf(log_fp, "[%04d/%02d/%02d %02d:%02d:%02d] ",
-		        tm->tm_year+1900, tm->tm_mon+1, tm->tm_mday,
-		        tm->tm_hour, tm->tm_min, tm->tm_sec);
+	switch (level) {
+	case E_OFF:
+		spdlog_level = spdlog::level::trace;
+		break;
+	case E_FATAL:
+		spdlog_level = spdlog::level::critical;
+		break;
+	case E_ERROR:
+		spdlog_level = spdlog::level::err;
+		break;
+	case E_WARN:
+		spdlog_level = spdlog::level::warn;
+		break;
+	case E_INFO:
+		spdlog_level = spdlog::level::info;
+		break;
+	case E_DEBUG:
+		spdlog_level = spdlog::level::debug;
+		break;
+	default:
+		spdlog_level = spdlog::level::trace;
+		break;
 	}
 
-	if (level)
-		fprintf(log_fp, "%s:%d: %s: ", fname, lineno, level_name[level]);
-	else
-		fprintf(log_fp, "%s:%d: ", fname, lineno);
-
-	// user log
+	spdlog::source_loc loc;
+	loc.filename = fname;
+	loc.line = lineno;
+	loc.funcname = "";
+	
+	char temp_buffer[1024];
 	va_start(ap, fmt);
-	if (vfprintf(log_fp, fmt, ap) == -1)
-	{
-		va_end(ap);
-		return;
-	}
+	vsnprintf(temp_buffer, sizeof(temp_buffer), fmt, ap);
 	va_end(ap);
+	
+	spdlog::default_logger_raw()->log(loc, spdlog_level, std::string_view(temp_buffer));
 
-	fflush(log_fp);
-
-	if (level==E_FATAL)
+	if (level == E_FATAL) {
+		spdlog::default_logger_raw()->flush();		
 		exit(-1);
-
-	return;
+	}
 }

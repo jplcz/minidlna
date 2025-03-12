@@ -266,6 +266,37 @@ if(avahi-client_FOUND)
   target_link_libraries(minidlnad PRIVATE PkgConfig::avahi-client)
 endif()
 
+#
+# Detect logger backend
+#
+
+set(LOG_BACKEND "" CACHE STRING "Select logger backend (systemd, syslog, stdio or android)")
+
+pkg_check_modules(libsystemd IMPORTED_TARGET libsystemd)
+check_symbol_exists(openlog "syslog.h" HAVE_OPENLOG)
+
+if (LOG_BACKEND STREQUAL "")
+    if (ANDROID)
+      set(LOG_BACKEND "android")
+    elseif (libsystemd_FOUND)
+      set(LOG_BACKEND "systemd")
+    elseif (HAVE_OPENLOG)
+      set(LOG_BACKEND "syslog")
+    else()
+      set(LOG_BACKEND "stdio")
+    endif()
+endif()
+
+if (LOG_BACKEND MATCHES "android")
+  set(CONFIG_LOG_ANDROID ON)
+  target_link_libraries(minidlnad PRIVATE log)
+elseif (LOG_BACKEND MATCHES "systemd")
+  set(CONFIG_LOG_SYSTEMD ON)
+  target_link_libraries(minidlnad PRIVATE PkgConfig::libsystemd)
+elseif (LOG_BACKEND MATCHES "syslog")
+  set(CONFIG_LOG_SYSLOG ON)
+endif()
+
 configure_file(config.h.in config.h)
 
 target_sources(

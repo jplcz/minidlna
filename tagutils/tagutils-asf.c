@@ -153,7 +153,7 @@ utf16le_to_utf8(char *dst, int n, uint16_t utf16le)
 static int
 _asf_read_file_properties(FILE *fp, asf_file_properties_t *p, uint32_t size)
 {
-	int len;
+	size_t len;
 
 	len = sizeof(*p) - offsetof(asf_file_properties_t, FileID);
 	if(size < len)
@@ -193,10 +193,10 @@ _pick_dlna_profile(struct song_metadata *psong, uint16_t format)
 }
 
 static int
-_asf_read_audio_stream(FILE *fp, struct song_metadata *psong, int size)
+_asf_read_audio_stream(FILE *fp, struct song_metadata *psong, size_t size)
 {
 	asf_audio_stream_t s;
-	int len;
+	size_t len;
 
 	len = sizeof(s) - sizeof(s.Hdr);
 	if(len > size)
@@ -220,7 +220,7 @@ _asf_read_media_stream(FILE *fp, struct song_metadata *psong, uint32_t size)
 {
 	asf_media_stream_t s;
 	avi_audio_format_t wfx;
-	int len;
+	size_t len;
 
 	len = sizeof(s) - sizeof(s.Hdr);
 	if(len > size)
@@ -250,10 +250,10 @@ _asf_read_media_stream(FILE *fp, struct song_metadata *psong, uint32_t size)
 }
 
 static int
-_asf_read_stream_object(FILE *fp, struct song_metadata *psong, uint32_t size)
+_asf_read_stream_object(FILE *fp, struct song_metadata *psong, size_t size)
 {
 	asf_stream_object_t s;
-	int len;
+	size_t len;
 
 	len = sizeof(s) - sizeof(asf_object_t);
 	if(size < len)
@@ -277,10 +277,10 @@ _asf_read_stream_object(FILE *fp, struct song_metadata *psong, uint32_t size)
 }
 
 static int
-_asf_read_extended_stream_object(FILE *fp, struct song_metadata *psong, uint32_t size)
+_asf_read_extended_stream_object(FILE *fp, struct song_metadata *psong, size_t size)
 {
-	int i, len;
-	long off;
+	size_t i, len;
+	size_t off;
 	asf_object_t tmp;
 	asf_extended_stream_object_t xs;
 	asf_stream_name_t nm;
@@ -370,11 +370,11 @@ _asf_read_header_extension(FILE *fp, struct song_metadata *psong, uint32_t size)
 }
 
 static int
-_asf_load_string(FILE *fp, int type, int size, char *buf, int len)
+_asf_load_string(FILE *fp, int type, size_t size, char *buf, size_t len)
 {
 	unsigned char data[2048];
 	uint16_t wc;
-	int i, j;
+	size_t i, j;
 	int16_t *wd16;
 	int32_t *wd32;
 	int64_t *wd64;
@@ -434,9 +434,9 @@ _asf_load_string(FILE *fp, int type, int size, char *buf, int len)
 }
 
 static void *
-_asf_load_picture(FILE *fp, int size, void *bm, int *bm_size)
+_asf_load_picture(FILE *fp, size_t size, void *bm, int *bm_size)
 {
-	int i;
+	size_t i;
 	char buf[256];
 #if 0
 	//
@@ -480,14 +480,14 @@ _asf_load_picture(FILE *fp, int size, void *bm, int *bm_size)
 		{
 			if(!(bm = malloc(size)))
 			{
-				DPRINTF(E_ERROR, L_SCANNER, "Couldn't allocate %d bytes\n", size);
+				DPRINTF(E_ERROR, L_SCANNER, "Couldn't allocate %zu bytes\n", size);
 			}
 			else
 			{
 				*bm_size = size;
-				if(size > *bm_size || fread(bm, 1, size, fp) != size)
+				if(size > (size_t) *bm_size || fread(bm, 1, size, fp) != size)
 				{
-					DPRINTF(E_ERROR, L_SCANNER, "Overrun %d bytes required\n", size);
+					DPRINTF(E_ERROR, L_SCANNER, "Overrun %zu bytes required\n", size);
 					free(bm);
 					bm = NULL;
 				}

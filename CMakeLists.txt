@@ -3,6 +3,7 @@ project(minidlna LANGUAGES C CXX)
 
 include(CheckSymbolExists)
 include(CheckSourceCompiles)
+include(CheckCXXCompilerFlag)
 include(GNUInstallDirs)
 include(cmake/get_cpm.cmake)
 
@@ -361,7 +362,13 @@ target_link_libraries(minidlnad PRIVATE spdlog::spdlog)
 target_link_libraries(minidlnad PRIVATE cxxopts::cxxopts)
 
 target_compile_features(minidlnad PRIVATE cxx_std_20)
-target_compile_options(minidlnad PRIVATE -Wall)
+target_compile_options(minidlnad PRIVATE -Wall -Wextra -Werror)
 target_compile_options(minidlnad PRIVATE -fstack-protector-strong)
 target_compile_definitions(minidlnad PRIVATE _LARGEFILE_SOURCE
                                              _FILE_OFFSET_BITS=64)
+
+check_cxx_compiler_flag(-Wno-error=clobbered HAVE_WNO_ERROR_CLOBBERED)
+
+if (HAVE_WNO_ERROR_CLOBBERED)
+  target_compile_options(minidlnad PRIVATE -Wno-error=clobbered)
+endif()

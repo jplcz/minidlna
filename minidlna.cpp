@@ -720,7 +720,7 @@ init(int argc, char **argv)
 			path = realpath(ary_options[i].value, buf);
 			if (!path)
 				path = ary_options[i].value;
-			if (snprintf(log_path, sizeof(log_path), "%s", path) > sizeof(log_path))
+			if (snprintf(log_path, sizeof(log_path), "%s", path) > (int) sizeof(log_path))
 				DPRINTF(E_FATAL, L_GENERAL, "Log path too long! [%s]\n", path);
 			make_dir(log_path, S_ISVTX|S_IRWXU|S_IRWXG|S_IRWXO);
 			break;
@@ -875,6 +875,7 @@ init(int argc, char **argv)
 			break;
 		case 'd':
 			debug_flag = 1;
+			[[fallthrough]];
 		case 'v':
 			verbose_flag = 1;
 			break;
@@ -1144,8 +1145,9 @@ real_main(int argc, char **argv)
 	ret = open_db(NULL);
 	if (ret == 0)
 	{
-		updateID = sql_get_int_field(db, "SELECT VALUE from SETTINGS where KEY = 'UPDATE_ID'");
-		if (updateID == -1)
+		const int new_value = sql_get_int_field(db, "SELECT VALUE from SETTINGS where KEY = 'UPDATE_ID'");
+		updateID.store(new_value, std::memory_order_relaxed);
+		if (new_value == -1)
 			ret = -1;
 	}
 	check_db(db, ret, &scanner_pid);
@@ -1159,7 +1161,7 @@ real_main(int argc, char **argv)
 	smonitor = OpenAndConfMonitorSocket();
 	if (smonitor > 0)
 	{
-		monev = (struct event ){ .fd = smonitor, .rdwr = EVENT_READ, .process = ProcessMonitorEvent };
+		monev = (struct event ){ .fd = smonitor, .index = 0, .rdwr = EVENT_READ, .process = ProcessMonitorEvent, .data = NULL };
 		event_module.add(&monev);
 	}
 
@@ -1173,7 +1175,7 @@ real_main(int argc, char **argv)
 	}
 	else
 	{
-		ssdpev = (struct event ){ .fd = sssdp, .rdwr = EVENT_READ, .process = ProcessSSDPRequest };
+		ssdpev = (struct event ){ .fd = sssdp, .index = 0, .rdwr = EVENT_READ, .process = ProcessSSDPRequest, .data = NULL };
 		event_module.add(&ssdpev);
 	}
 
@@ -1182,7 +1184,7 @@ real_main(int argc, char **argv)
 	if (shttpl < 0)
 		DPRINTF(E_FATAL, L_GENERAL, "Failed to open socket for HTTP. EXITING\n");
 	DPRINTF(E_WARN, L_GENERAL, "HTTP listening on port %d\n", runtime_vars.port);
-	httpev = (struct event ){ .fd = shttpl, .rdwr = EVENT_READ, .process = ProcessListen };
+	httpev = (struct event ){ .fd = shttpl, .index = 0, .rdwr = EVENT_READ, .process = ProcessListen, .data = NULL };
 	event_module.add(&httpev);
 
 	if (gettimeofday(&timeofday, 0) < 0)
@@ -1276,7 +1278,7 @@ real_main(int argc, char **argv)
 				DPRINTF(E_INFO, L_GENERAL, "Scanner exited\n");
 				CLEARFLAG(SCANNING_MASK);
 				if (_get_dbtime() != lastdbtime)
-					updateID++;
+					updateID.fetch_add(1, std::memory_order_relaxed);
 #ifdef HAVE_WATCH
 				start_monitor();
 #endif
@@ -1310,7 +1312,7 @@ real_main(int argc, char **argv)
 			}
 			if (sqlite3_total_changes(db) != last_changecnt)
 			{
-				updateID++;
+				updateID.fetch_add(1, std::memory_order_relaxed);
 				last_changecnt = sqlite3_total_changes(db);
 				upnp_event_var_change_notify(EContentDirectory);
 				lastupdatetime = timeofday.tv_sec;
@@ -1367,7 +1369,7 @@ shutdown:
 
 	event_module.fini();
 
-	sql_exec(db, "UPDATE SETTINGS set VALUE = '%u' where KEY = 'UPDATE_ID'", updateID);
+	sql_exec(db, "UPDATE SETTINGS set VALUE = '%u' where KEY = 'UPDATE_ID'", updateID.load(std::memory_order_relaxed));
 	sqlite3_close(db);
 
 	upnpevents_removeSubscribers();

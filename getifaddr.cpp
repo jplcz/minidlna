@@ -151,7 +151,7 @@ getifaddr(const char *ifname)
 		if (ioctl(s, SIOCGIFNETMASK, ifr) < 0)
 			continue;
 		memcpy(&addr, &(ifr->ifr_addr), sizeof(addr));
-		memcpy(&lan_addr[n_lan_addr].mask, &addr.sin_addr, sizeof(addr));
+		memcpy(&lan_addr[n_lan_addr].mask, &addr.sin_addr, sizeof(addr.sin_addr));
 		lan_addr[n_lan_addr].ifindex = if_nametoindex(ifr->ifr_name);
 		lan_addr[n_lan_addr].snotify = OpenAndConfSSDPNotifySocket(&lan_addr[n_lan_addr]);
 		if (lan_addr[n_lan_addr].snotify >= 0)
@@ -386,7 +386,7 @@ ProcessMonitorEvent(struct event *ev)
 {
 #ifdef HAVE_NETLINK
 	int s = ev->fd;
-	int len;
+	ssize_t len;
 	char buf[4096];
 	struct nlmsghdr *nlh;
 	int changed = 0;

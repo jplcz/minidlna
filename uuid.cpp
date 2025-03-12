@@ -39,6 +39,9 @@
 #include <sys/syscall.h>
 #endif
 
+#include <random>
+#include <chrono>
+
 #include "event.h"
 #include "uuid.h"
 #include "getifaddr.h"
@@ -55,20 +58,10 @@ static int clock_seq_initialized;
 unsigned long long
 monotonic_us(void)
 {
-	struct timespec ts;
-
-#if HAVE_CLOCK_GETTIME
-	clock_gettime(CLOCK_MONOTONIC, &ts);
-#elif HAVE_CLOCK_GETTIME_SYSCALL
-	syscall(__NR_clock_gettime, CLOCK_MONOTONIC, &ts);
-#elif HAVE_MACH_MACH_TIME_H
-	return mach_absolute_time();
-#else
-	struct timeval tv;
-	gettimeofday(&tv, 0);
-	TIMEVAL_TO_TIMESPEC(&tv, &ts);
-#endif
-	return ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000;
+	const auto pt = std::chrono::steady_clock::now();
+	const auto usec = std::chrono::time_point_cast<
+		std::chrono::microseconds>(pt);
+	return usec.time_since_epoch().count();
 }
 
 int
@@ -97,29 +90,19 @@ read_bootid_node(unsigned char *buf, size_t size)
 static void
 read_random_bytes(unsigned char *buf, size_t size)
 {
-	int i;
-	pid_t pid;
+	std::uniform_int_distribution<unsigned char> dist(0, 255);
 
-	i = open("/dev/urandom", O_RDONLY);
-	if(i >= 0)
-	{
-		if (read(i, buf, size) == -1)
-			DPRINTF(E_MAXDEBUG, L_GENERAL, "Failed to read random bytes\n");
-		close(i);
-	}
-	/* Paranoia. /dev/urandom may be missing.
-	 * rand() is guaranteed to generate at least [0, 2^15) range,
-	 * but lowest bits in some libc are not so "random".  */
-	srand(monotonic_us());
-	pid = getpid();
-	while(1)
-	{
-		for(i = 0; i < size; i++)
-			buf[i] ^= rand() >> 5;
-		if(pid == 0)
-			break;
-		srand(pid);
-		pid = 0;
+	try {
+		std::random_device dev;
+		std::mt19937_64 rng(dev());
+		std::generate_n(buf, size, [&]() {
+			return dist(rng);
+		});
+	} catch(...) {
+		std::mt19937_64 rng(monotonic_us());
+		std::generate_n(buf, size, [&]() {
+			return dist(rng);
+		});
 	}
 }
 

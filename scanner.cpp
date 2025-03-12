@@ -138,7 +138,7 @@ insert_container(const char *item, const char *rootParent, const char *refID, co
 }
 
 static void
-insert_containers(const char *name, const char *path, const char *refID, const char *klass, int64_t detailID)
+insert_containers(const char *name, const char *, const char *refID, const char *klass, int64_t detailID)
 {
 	char sql[128];
 	char **result;
@@ -627,7 +627,7 @@ filter_hidden(scan_filter *d)
 }
 
 static int
-filter_type(scan_filter *d)
+filter_type([[maybe_unused]] scan_filter *d)
 {
 #if HAVE_STRUCT_DIRENT_D_TYPE
 	return ( (d->d_type == DT_DIR) ||
@@ -823,7 +823,7 @@ ScanDirectory(const char *dir, const char *parent, media_types dir_types)
 
 /* rescan functions added by shrimpkin@sourceforge.net */
 static int
-cb_orphans(void *args, int argc, char **argv, char **azColName)
+cb_orphans(void *, int, char **argv, char **)
 {
 	const char *path = argv[0];
 	const char *mime = argv[1];

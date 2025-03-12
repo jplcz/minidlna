@@ -237,7 +237,7 @@ check_embedded_art(const char *path, uint8_t *image_data, int image_size)
 		}
 		nwritten = fwrite((void *)image_data, 1, image_size, dstfile);
 		fclose(dstfile);
-		if( nwritten != image_size )
+		if( nwritten != (size_t) image_size )
 		{
 			DPRINTF(E_WARN, L_METADATA, "Embedded art error: wrote %lu/%d bytes\n",
 				(unsigned long)nwritten, image_size);

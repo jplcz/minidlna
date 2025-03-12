@@ -38,7 +38,7 @@ static int (*_next_track)(struct song_metadata*, struct stat*, char*, char*);
 static int _m3u_pls_next_track(struct song_metadata*, struct stat*, char*, char*);
 
 int
-start_plist(const char *path, struct song_metadata *psong, struct stat *stat, char *lang, char *type)
+start_plist(const char *path, struct song_metadata *psong, struct stat *stat, char *, char *type)
 {
 	char *fname, *suffix;
 
@@ -89,7 +89,7 @@ start_plist(const char *path, struct song_metadata *psong, struct stat *stat, ch
 }
 
 int
-_m3u_pls_next_track(struct song_metadata *psong, struct stat *stat, char *lang, char *type)
+_m3u_pls_next_track(struct song_metadata *psong, struct stat *, char *, char *type)
 {
 	char buf[MAX_BUF], *p;
 	int len;

@@ -104,7 +104,7 @@ _get_aactags(const char *file, struct song_metadata *psong)
 
 			current_data = (char*)malloc(len); // extra byte
 
-			if(fread(current_data, 1, current_size - 8, fin) != current_size - 8)
+			if(fread(current_data, 1, (size_t) (current_size - 8), fin) != (size_t) (current_size - 8))
 				break;
 
 			current_data[current_size - 8] = '\0';
@@ -145,7 +145,7 @@ _get_aactags(const char *file, struct song_metadata *psong)
 			else if(!memcmp(current_atom, "gnre", 4))
 			{
 				genre = current_data[17] - 1;
-				if((genre < 0) || (genre > WINAMP_GENRE_UNKNOWN))
+				if((genre < 0) || (genre > (int) WINAMP_GENRE_UNKNOWN))
 					genre = WINAMP_GENRE_UNKNOWN;
 				psong->genre = strdup(winamp_genre[genre]);
 			}

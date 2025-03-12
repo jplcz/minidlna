@@ -68,9 +68,9 @@ do_iconv(const char* to_ces, const char* from_ces,
 }
 #else // HAVE_ICONV
 static iconv_result
-do_iconv(const char* to_ces, const char* from_ces,
-	 char *inbuf,  size_t inbytesleft,
-	 char *outbuf_orig, size_t outbytesleft_orig)
+do_iconv(const char*, const char*,
+	 char *, size_t,
+	 char *, size_t)
 {
 	return ICONV_FATAL;
 }

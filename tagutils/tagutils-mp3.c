@@ -170,7 +170,7 @@ _get_mp3tags(const char *file, struct song_metadata *psong)
 
 						if(got_numeric_genre)
 						{
-							if((genre < 0) || (genre > WINAMP_GENRE_UNKNOWN))
+							if((genre < 0) || (genre > (int) WINAMP_GENRE_UNKNOWN))
 								genre = WINAMP_GENRE_UNKNOWN;
 							free(psong->genre);
 							psong->genre = strdup(winamp_genre[genre]);
@@ -423,10 +423,10 @@ static void _mp3_get_average_bitrate(FILE *infile, struct mp3_frameinfo *pfi, co
 
 	while(!found)
 	{
-		while((frame_buffer[index] != 0xFF) && (index < (sizeof(frame_buffer) - 4)))
+		while((frame_buffer[index] != 0xFF) && (index < (int) (sizeof(frame_buffer) - 4)))
 			index++;
 
-		if(index >= (sizeof(frame_buffer) - 4))   // max mp3 framesize = 2880
+		if(index >= (int) (sizeof(frame_buffer) - 4))   // max mp3 framesize = 2880
 		{
 			DPRINTF(E_DEBUG, L_SCANNER, "Could not find frame for %s\n", basename((char *)fname));
 			return;
@@ -626,7 +626,7 @@ _get_mp3fileinfo(const char *file, struct song_metadata *psong)
 		index = 0;
 		while(!found)
 		{
-			while((buffer[index] != 0xFF) && (index < (n_read - 50)))
+			while((buffer[index] != 0xFF) && (index < (int) (n_read - 50)))
 				index++;
 
 			if((first_check) && (index))
@@ -641,7 +641,7 @@ _get_mp3fileinfo(const char *file, struct song_metadata *psong)
 				break;
 			}
 
-			if(index > (n_read - 50))
+			if(index > (int) (n_read - 50))
 			{
 				fp_size += index;
 				if(n_read < sizeof(buffer))

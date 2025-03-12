@@ -57,6 +57,8 @@
 
 #include <sqlite3.h>
 
+#include <atomic>
+
 #define MINIDLNA_VERSION "1.3.3"
 
 #ifdef NETGEAR
@@ -245,7 +247,7 @@ extern char log_path[1024];
 extern struct media_dir_s *media_dirs;
 extern struct album_art_name_s *album_art_names;
 extern volatile short int quitting;
-extern volatile uint32_t updateID;
+extern std::atomic<uint32_t> updateID;
 extern const char *force_sort_criteria;
 
 #endif

@@ -127,16 +127,16 @@ _get_dfffileinfo(const char *file, struct song_metadata *psong)
 			propckDataSize = GET_DFF_INT64(ckbuf + 4);
 			totalcount += propckDataSize + 12;
 
-			unsigned char propckData[propckDataSize];
+			std::vector<unsigned char> propckData(propckDataSize);
 
-			if (!(rt = fread(propckData, propckDataSize, 1, fp)))
+			if (!(rt = fread(propckData.data(), propckDataSize, 1, fp)))
 			{
 				DPRINTF(E_WARN, L_SCANNER, "Could not read Property chunk from %s\n", file);
 				fclose(fp);
 				return -1;
 			}
 
-			if (strncmp((char*)propckData, "SND ", 4))
+			if (strncmp((char*)propckData.data(), "SND ", 4))
 			{
 				DPRINTF(E_WARN, L_SCANNER, "Invalid Property chunk in %s\n", file);
 				fclose(fp);
@@ -146,47 +146,47 @@ _get_dfffileinfo(const char *file, struct song_metadata *psong)
 			count += 4;
 			while (count < propckDataSize)
 			{
-				if (strncmp((char*)propckData + count, "FS  ", 4) == 0)
+				if (strncmp((char*)propckData.data() + count, "FS  ", 4) == 0)
 				{
 					//Sample Rate Chunk
 					count += 12;
-					samplerate = GET_DFF_INT32(propckData + count);
+					samplerate = GET_DFF_INT32(propckData.data() + count);
 					psong->samplerate = samplerate;
 					count += 4;
 
 					//DEBUG DPRINTF(E_DEBUG, L_SCANNER, "Sample Rate is %d\n", psong->samplerate);
 				}
-				else if (strncmp((char*)propckData + count, "CHNL", 4) == 0)
+				else if (strncmp((char*)propckData.data() + count, "CHNL", 4) == 0)
 				{
 					//Channels Chunk
 					count += 12;
-					channels = GET_DFF_INT16(propckData + count);
+					channels = GET_DFF_INT16(propckData.data() + count);
 					psong->channels = channels;
 					count += channels * 4 + 2;
 
 					//DEBUG DPRINTF(E_DEBUG, L_SCANNER, "channels is %d\n", channels);
 				}
-				else if (strncmp((char*)propckData + count, "CMPR", 4) == 0)
+				else if (strncmp((char*)propckData.data() + count, "CMPR", 4) == 0)
 				{
 					//Compression Type Chunk
 					count += 4;
-					cmprckDataSize = GET_DFF_INT64(propckData + count);
+					cmprckDataSize = GET_DFF_INT64(propckData.data() + count);
 					count += 8;
-					memcpy(compressionType, propckData + count, 4);
+					memcpy(compressionType, propckData.data() + count, 4);
 					count += cmprckDataSize;
 				}
-				else if (strncmp((char*)propckData + count, "ABSS", 4) == 0)
+				else if (strncmp((char*)propckData.data() + count, "ABSS", 4) == 0)
 				{
 					//Absolute Start Time Chunk
 					count += 4;
-					abssckDataSize = GET_DFF_INT64(propckData + count);
+					abssckDataSize = GET_DFF_INT64(propckData.data() + count);
 					count += abssckDataSize + 8;
 				}
-				else if (strncmp((char*)propckData + count, "LSCO", 4) == 0)
+				else if (strncmp((char*)propckData.data() + count, "LSCO", 4) == 0)
 				{
 					//Loudsperaker Configuration Chunk
 					count += 4;
-					lscockDataSize = GET_DFF_INT64(propckData + count);
+					lscockDataSize = GET_DFF_INT64(propckData.data() + count);
 					count += lscockDataSize + 8;
 				}
 				else
@@ -301,10 +301,10 @@ _get_dfffileinfo(const char *file, struct song_metadata *psong)
 		{
 			//Edited Master Information chunk
 			diinckDataSize = GET_DFF_INT64(ckbuf + 4);
-			unsigned char diinckData[diinckDataSize];
+			std::vector<unsigned char> diinckData(diinckDataSize);
 			totalcount += diinckDataSize + 12;
 
-			if (!(rt = fread(diinckData, diinckDataSize, 1, fp)))
+			if (!(rt = fread(diinckData.data(), diinckDataSize, 1, fp)))
 			{
 				DPRINTF(E_WARN, L_SCANNER, "Could not read Edited Master Information chunk from %s\n", file);
 				fclose(fp);
@@ -314,44 +314,42 @@ _get_dfffileinfo(const char *file, struct song_metadata *psong)
 			uint64_t icount = 0;
 			while (icount < diinckDataSize)
 			{
-				if (!strncmp((char*)diinckData + icount, "EMID", 4))
+				if (!strncmp((char*)diinckData.data() + icount, "EMID", 4))
 				{
 					//Edited Master ID chunk
 					icount += 4;
-					icount += GET_DFF_INT64(diinckData + icount) + 8;
+					icount += GET_DFF_INT64(diinckData.data() + icount) + 8;
 				}
-				else if (!strncmp((char*)diinckData + icount, "MARK", 4))
+				else if (!strncmp((char*)diinckData.data() + icount, "MARK", 4))
 				{
 					//Master Chunk
 					icount += 4;
-					icount += GET_DFF_INT64(diinckData + icount) + 8;
+					icount += GET_DFF_INT64(diinckData.data() + icount) + 8;
 				}
-				else if (!strncmp((char*)diinckData + icount, "DIAR", 4))
+				else if (!strncmp((char*)diinckData.data() + icount, "DIAR", 4))
 				{
 					//Artist Chunk
 					icount += 4;
-					diarckDataSize = GET_DFF_INT64(diinckData + icount);
-					unsigned char arttext[diarckDataSize + 1 - 4];
+					diarckDataSize = GET_DFF_INT64(diinckData.data() + icount);
+					std::vector<unsigned char> arttext(diarckDataSize + 1 - 4);
 
 					icount += 12;
 
-					memset(arttext, 0x00, sizeof(arttext));
-					strncpy((char*)arttext, (char*)diinckData + icount, sizeof(arttext) - 1);
+					strncpy((char*)arttext.data(), (char*)diinckData.data() + icount, sizeof(arttext) - 1);
 					psong->contributor[ROLE_ARTIST] = strdup((char*)&arttext[0]);
 
 					icount += diarckDataSize - 4;
 				}
-				else if (!strncmp((char*)diinckData + icount, "DITI", 4))
+				else if (!strncmp((char*)diinckData.data() + icount, "DITI", 4))
 				{
 					//Title Chunk
 					icount += 4;
-					ditickDataSize = GET_DFF_INT64(diinckData + icount);
-					unsigned char titletext[ditickDataSize + 1 - 4];
+					ditickDataSize = GET_DFF_INT64(diinckData.data() + icount);
+					std::vector<unsigned char> titletext(ditickDataSize + 1 - 4);
 
 					icount += 12;
 
-					memset(titletext, 0x00, sizeof(titletext));
-					strncpy((char*)titletext, (char*)diinckData + icount, sizeof(titletext) - 1);
+					strncpy((char*)titletext.data(), (char*)diinckData.data() + icount, sizeof(titletext) - 1);
 					psong->title = strdup((char*)&titletext[0]);
 					icount += ditickDataSize - 4;
 				}

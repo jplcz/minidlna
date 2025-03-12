@@ -716,7 +716,7 @@ GetVideoMetadata(const char *path, const char *name)
 		return 0;
 	}
 	//dump_format(ctx, 0, NULL, 0);
-	for( i=0; i < ctx->nb_streams; i++)
+	for( i=0; i < (int) ctx->nb_streams; i++)
 	{
 		if( lav_codec_type(ctx->streams[i]) == AVMEDIA_TYPE_AUDIO &&
 		    audio_stream == -1 )
@@ -929,6 +929,7 @@ GetVideoMetadata(const char *path, const char *name)
 							break;
 						case VALID:
 							off += sprintf(m.dlna_pn+off, "_T");
+							[[fallthrough]];
 						case EMPTY:
 							xasprintf(&m.mime, "video/vnd.dlna.mpeg-tts");
 						default:
@@ -1021,6 +1022,7 @@ GetVideoMetadata(const char *path, const char *name)
 							/* Fall back to Main Profile if it doesn't match a Baseline DLNA profile. */
 							else
 								off -= 3;
+							[[fallthrough]];
 						default:
 						case FF_PROFILE_H264_MAIN:
 							off += sprintf(m.dlna_pn+off, "MP_");
@@ -1118,6 +1120,7 @@ GetVideoMetadata(const char *path, const char *name)
 							break;
 						case VALID:
 							off += sprintf(m.dlna_pn+off, "_T");
+							[[fallthrough]];
 						case EMPTY:
 							xasprintf(&m.mime, "video/vnd.dlna.mpeg-tts");
 						default:
@@ -1336,6 +1339,7 @@ GetVideoMetadata(const char *path, const char *name)
 					if( !((lav_codec_extradata(vstream)[0] >> 6) & 1) )
 						lav_profile(vstream) = 0;
 				}
+				[[fallthrough]];
 			case AV_CODEC_ID_VC1:
 				if( strcmp(ctx->iformat->name, "asf") != 0 )
 				{
@@ -1437,6 +1441,7 @@ GetVideoMetadata(const char *path, const char *name)
 				break;
 			case AV_CODEC_ID_MSMPEG4V3:
 				xasprintf(&m.mime, "video/x-msvideo");
+				[[fallthrough]];
 			default:
 				DPRINTF(E_DEBUG, L_METADATA, "Stream %d of %s is %s [type %d]\n",
 					video_stream, basepath, m.resolution, lav_codec_id(vstream));

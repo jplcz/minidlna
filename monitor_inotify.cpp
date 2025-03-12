@@ -256,7 +256,7 @@ inotify_remove_watches(int fd)
 }
 
 static void *
-inotify_thread(void *arg)
+inotify_thread(void *)
 {
 	struct pollfd pollfds[1];
 	char buffer[BUF_LEN];

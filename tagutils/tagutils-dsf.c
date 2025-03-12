@@ -271,7 +271,7 @@ _get_dsftags(const char *file, struct song_metadata *psong)
 
 						if (got_numeric_genre)
 						{
-							if ((genre < 0) || (genre > WINAMP_GENRE_UNKNOWN))
+							if ((genre < 0) || (genre > (int) WINAMP_GENRE_UNKNOWN))
 								genre = WINAMP_GENRE_UNKNOWN;
 							free(psong->genre);
 							psong->genre = strdup(winamp_genre[genre]);
@@ -370,8 +370,9 @@ static int
 _get_dsffileinfo(const char *file, struct song_metadata *psong)
 {
 	FILE *fp;
-	int len = 80;
-	unsigned char hdr[len];
+	constexpr size_t req_len = 80;
+	size_t did_read_len;
+	unsigned char hdr[req_len];
 	uint32_t channelnum;
 	uint32_t samplingfrequency;
 	uint32_t bitpersample;
@@ -383,7 +384,7 @@ _get_dsffileinfo(const char *file, struct song_metadata *psong)
 		return -1;
 	}
 
-	if (!(len = fread(hdr, len, 1, fp)))
+	if (!(did_read_len = fread(hdr, req_len, 1, fp)))
 	{
 		DPRINTF(E_WARN, L_SCANNER, "Could not read chunks from %s\n", file);
 		fclose(fp);

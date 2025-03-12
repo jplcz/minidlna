@@ -312,10 +312,10 @@ SendSSDPNotifies(int s, const char *host, unsigned short port,
 					(i > 0 ? "::" : ""),
 					(i > 0 ? known_service_types[i] : ""),
 					(i > 1 ? "1" : ""));
-			if (l >= sizeof(bufr))
+			if (l >= (int) sizeof(bufr))
 			{
 				DPRINTF(E_WARN, L_SSDP, "SendSSDPNotifies(): truncated output\n");
-				l = sizeof(bufr);
+				l = (int) sizeof(bufr);
 			}
 			DPRINTF(E_MAXDEBUG, L_SSDP, "Sending ssdp:alive [%d]\n", s);
 			n = sendto(s, bufr, l, 0,
@@ -495,7 +495,7 @@ void
 ProcessSSDPRequest(struct event *ev)
 {
 	int s = ev->fd;
-	int n;
+	ssize_t n;
 	char bufr[1500];
 	struct sockaddr_in sendername;
 	int i;
@@ -514,7 +514,8 @@ ProcessSSDPRequest(struct event *ev)
 		.msg_iov = &iovec,
 		.msg_iovlen = 1,
 		.msg_control = cmbuf,
-		.msg_controllen = sizeof(cmbuf)
+		.msg_controllen = sizeof(cmbuf),
+		.msg_flags = 0
 	};
 
 	n = recvmsg(s, &mh, 0);
@@ -682,7 +683,7 @@ ProcessSSDPRequest(struct event *ev)
 				inet_ntop(AF_INET, &addr, host, sizeof(host));
 				for (i = 0; i < n_lan_addr; i++)
 				{
-					if (pi->ipi_ifindex == lan_addr[i].ifindex)
+					if (pi->ipi_ifindex == (int) lan_addr[i].ifindex)
 						break;
 				}
 			}

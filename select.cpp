@@ -112,7 +112,7 @@ select_add(struct event *ev)
 }
 
 static int
-select_del(struct event *ev, int flags)
+select_del(struct event *ev, int)
 {
 
 	assert(ev->fd < FD_SETSIZE);

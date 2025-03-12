@@ -132,9 +132,8 @@ my_src_mgr
 };
 
 static void
-init_source(j_decompress_ptr cinfo)
+init_source(j_decompress_ptr)
 {
-	return;
 }
 
 static boolean
@@ -168,7 +167,7 @@ skip_input_data(j_decompress_ptr cinfo, long num_bytes)
 }
 
 static void
-term_source(j_decompress_ptr cinfo)
+term_source(j_decompress_ptr)
 {
 	return;
 }
@@ -423,7 +422,7 @@ image_s *
 image_new_from_jpeg(const char *path, int is_file, const uint8_t *buf, int size, int scale, int rotate)
 {
 	image_s *vimage;
-	FILE  *file = NULL;
+	FILE *file = NULL;
 	struct jpeg_decompress_struct cinfo;
 	unsigned char *line[16], *ptr;
 	int x, y, i, w, h, ofs;

@@ -110,7 +110,7 @@ process_fork(struct client_cache_s *client)
 }
 
 void
-process_handle_child_termination(int signal)
+process_handle_child_termination(int)
 {
 	pid_t pid;
 

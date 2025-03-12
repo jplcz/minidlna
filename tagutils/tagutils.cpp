@@ -50,6 +50,8 @@
 #include "../utils.h"
 #include "../log.h"
 
+#include <vector>
+
 struct id3header {
 	unsigned char id[3];
 	unsigned char version[2];
@@ -116,8 +118,8 @@ const char *winamp_genre[] = {
 #include "tagutils-dsf.h"
 #include "tagutils-dff.h"
 
-static int _get_tags(char *file, struct song_metadata *psong);
-static int _get_fileinfo(char *file, struct song_metadata *psong);
+static int _get_tags(const char *file, struct song_metadata *psong);
+static int _get_fileinfo(const char *file, struct song_metadata *psong);
 
 
 /*

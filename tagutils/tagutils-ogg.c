@@ -214,13 +214,13 @@ _ogg_vorbis_end(ogg_stream_processor *stream, struct song_metadata *psong)
 }
 
 static void
-_ogg_process_null(ogg_stream_processor *stream, ogg_page *page, struct song_metadata *psong)
+_ogg_process_null(ogg_stream_processor *, ogg_page *, struct song_metadata *)
 {
 	// invalid stream
 }
 
 static void
-_ogg_process_other(ogg_stream_processor *stream, ogg_page *page, struct song_metadata *psong)
+_ogg_process_other(ogg_stream_processor *stream, ogg_page *page, struct song_metadata *)
 {
 	ogg_stream_pagein(&stream->os, page);
 }

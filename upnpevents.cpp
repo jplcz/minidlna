@@ -170,7 +170,7 @@ upnpevents_addSubscriber(const char * eventurl,
 
 /* renew a subscription (update the timeout) */
 int
-renewSubscription(const char * sid, int sidlen, int timeout)
+renewSubscription(const char * sid, [[maybe_unused]] int sidlen, int timeout)
 {
 	struct subscriber * sub;
 	for(sub = subscriberlist.lh_first; sub != NULL; sub = sub->entries.le_next) {
@@ -230,7 +230,8 @@ static void
 upnp_event_create_notify(struct subscriber *sub)
 {
 	struct upnp_event_notify * obj;
-	int flags, s, i;
+	int flags, s;
+	size_t i;
 	const char *p;
 	unsigned short port;
 	struct sockaddr_in addr;
@@ -293,7 +294,7 @@ upnp_event_create_notify(struct subscriber *sub)
 	DPRINTF(E_DEBUG, L_HTTP, "'%s' %hu '%s'\n",
 	       obj->addrstr, port, obj->path);
 	obj->state = upnp_event_notify::EConnecting;
-	obj->ev = (struct event ){ .fd = s, .rdwr = EVENT_WRITE,
+	obj->ev = (struct event ){ .fd = s, .index = 0, .rdwr = EVENT_WRITE,
 		.process = upnp_event_process_notify, .data = obj };
 	event_module.add(&obj->ev);
 	if(connect(s, (struct sockaddr *)&addr, sizeof(addr)) < 0) {

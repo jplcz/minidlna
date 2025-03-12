@@ -114,7 +114,7 @@ New_upnphttp(int s)
 	if(ret == NULL)
 		return NULL;
 	memset(ret, 0, sizeof(struct upnphttp));
-	ret->ev = (struct event ){ .fd = s, .rdwr = EVENT_READ, .process = Process_upnphttp, .data = ret };
+	ret->ev = (struct event ){ .fd = s, .index = 0, .rdwr = EVENT_READ, .process = Process_upnphttp, .data = ret };
 	event_module.add(&ret->ev);
 	return ret;
 }
@@ -726,7 +726,7 @@ check_event(struct upnphttp *h)
 			/* Make sure callback URL points to the originating IP */
 			struct in_addr addr;
 			char addrstr[16];
-			int i = 0;
+			size_t i = 0;
 			const char *p = h->req_Callback + 7;
 			while (!strchr("/:>", *p) && i < sizeof(addrstr) - 1 &&
 			       p < (h->req_Callback + h->req_CallbackLen))

@@ -56,7 +56,7 @@ static inline void strncpyt(char *dst, const char *src, size_t len)
 	strncpy(dst, src, --len);
 	dst[len] = '\0';
 }
-static inline int is_reg(const struct dirent *d)
+static inline int is_reg([[maybe_unused]] const struct dirent *d)
 {
 #if HAVE_STRUCT_DIRENT_D_TYPE
 	return (d->d_type == DT_REG);
@@ -64,7 +64,7 @@ static inline int is_reg(const struct dirent *d)
 	return -1;
 #endif
 }
-static inline int is_dir(const struct dirent *d)
+static inline int is_dir([[maybe_unused]] const struct dirent *d)
 {
 #if HAVE_STRUCT_DIRENT_D_TYPE
 	return (d->d_type == DT_DIR);
@@ -99,7 +99,7 @@ const char *mime_to_ext(const char * mime);
 
 /* Others */
 int make_dir(char * path, mode_t mode);
-unsigned int DJBHash(uint8_t *data, int len);
+unsigned int DJBHash(uint8_t *data, unsigned int len);
 
 /* Timeval manipulations */
 void	timevaladd(struct timeval *t1, const struct timeval *t2);

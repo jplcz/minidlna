@@ -60,6 +60,7 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <ctype.h>
+#include <inttypes.h>
 
 #include "event.h"
 #include "upnpglobalvars.h"
@@ -173,7 +174,7 @@ GetSystemUpdateID(struct upnphttp * h, const char * action)
 	static const char resp[] =
 		"<u:%sResponse "
 		"xmlns:u=\"%s\">"
-		"<Id>%d</Id>"
+		"<Id>%" PRIu32 "</Id>"
 		"</u:%sResponse>";
 
 	char body[512];
@@ -181,7 +182,7 @@ GetSystemUpdateID(struct upnphttp * h, const char * action)
 
 	bodylen = snprintf(body, sizeof(body), resp,
 		action, "urn:schemas-upnp-org:service:ContentDirectory:1",
-		updateID, action);
+		updateID.load(std::memory_order_relaxed), action);
 	BuildSendAndCloseSoapResp(h, body, bodylen);
 }
 
@@ -1377,7 +1378,7 @@ BrowseContentDirectory(struct upnphttp * h, const char * action)
 	args.returned = 0;
 	args.requested = RequestedCount;
 	args.client = h->req_client ? h->req_client->type->type : EUnknownClient;
-	args.flags = h->req_client ? h->req_client->type->flags : EUnknownClient;
+	args.flags = h->req_client ? h->req_client->type->flags : 0;
 	args.str = &str;
 	DPRINTF(E_DEBUG, L_HTTP, "Browsing ContentDirectory:\n"
 	                         " * ObjectID: %s\n"
@@ -1517,7 +1518,7 @@ BrowseContentDirectory(struct upnphttp * h, const char * action)
 	                    "<TotalMatches>%u</TotalMatches>\n"
 	                    "<UpdateID>%u</UpdateID>"
 	                    "</u:BrowseResponse>",
-	                    args.returned, totalMatches, updateID);
+	                    args.returned, totalMatches, updateID.load(std::memory_order_relaxed));
 	BuildSendAndCloseSoapResp(h, str.data, str.off);
 browse_error:
 	ClearNameValueList(&data);
@@ -1574,6 +1575,7 @@ parse_search_criteria(const char *str, char *sep)
 				}
 				else
 					break;
+				[[fallthrough]];
 			case '"':
 				literal = 0;
 				if (like)
@@ -1604,6 +1606,7 @@ parse_search_criteria(const char *str, char *sep)
 						continue;
 					}
 				}
+				[[fallthrough]];
 			default:
 				charcat(&criteria, *s);
 				break;
@@ -1761,6 +1764,7 @@ parse_search_criteria(const char *str, char *sep)
 					klass = 0;
 					continue;
 				}
+				[[fallthrough]];
 			case 'u':
 				if (strncmp(s, "upnp:class", 10) == 0)
 				{
@@ -1883,7 +1887,7 @@ SearchContentDirectory(struct upnphttp * h, const char * action)
 	args.returned = 0;
 	args.requested = RequestedCount;
 	args.client = h->req_client ? h->req_client->type->type : EUnknownClient;
-	args.flags = h->req_client ? h->req_client->type->flags : EUnknownClient;
+	args.flags = h->req_client ? h->req_client->type->flags : 0;
 	args.str = &str;
 	DPRINTF(E_DEBUG, L_HTTP, "Searching ContentDirectory:\n"
 	                         " * ObjectID: %s\n"
@@ -1966,7 +1970,7 @@ SearchContentDirectory(struct upnphttp * h, const char * action)
 	                    "<TotalMatches>%u</TotalMatches>\n"
 	                    "<UpdateID>%u</UpdateID>"
 	                    "</u:SearchResponse>",
-	                    args.returned, totalMatches, updateID);
+	                    args.returned, totalMatches, updateID.load(std::memory_order_relaxed));
 	BuildSendAndCloseSoapResp(h, str.data, str.off);
 search_error:
 	ClearNameValueList(&data);

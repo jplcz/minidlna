@@ -29,6 +29,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <cinttypes>
 
 #include "config.h"
 #include "event.h"
@@ -225,32 +226,32 @@ static const struct stateVar ConnectionManagerVars[] =
 	{"SourceProtocolInfo", 0|EVENTED, 0, 0, 44}, /* required */
 	{"SinkProtocolInfo", 0|EVENTED, 0, 0, 48}, /* required */
 	{"CurrentConnectionIDs", 0|EVENTED, 0, 0, 46}, /* required */
-	{"A_ARG_TYPE_ConnectionStatus", 0, 0, 27}, /* required */
-	{"A_ARG_TYPE_ConnectionManager", 0, 0}, /* required */
-	{"A_ARG_TYPE_Direction", 0, 0, 33}, /* required */
-	{"A_ARG_TYPE_ProtocolInfo", 0, 0}, /* required */
-	{"A_ARG_TYPE_ConnectionID", 4, 0}, /* required */
-	{"A_ARG_TYPE_AVTransportID", 4, 0}, /* required */
-	{"A_ARG_TYPE_RcsID", 4, 0}, /* required */
-	{0, 0}
+	{"A_ARG_TYPE_ConnectionStatus", 0, 0, 27, 0}, /* required */
+	{"A_ARG_TYPE_ConnectionManager", 0, 0, 0, 0}, /* required */
+	{"A_ARG_TYPE_Direction", 0, 0, 33, 0}, /* required */
+	{"A_ARG_TYPE_ProtocolInfo", 0, 0, 0, 0}, /* required */
+	{"A_ARG_TYPE_ConnectionID", 4, 0, 0, 0}, /* required */
+	{"A_ARG_TYPE_AVTransportID", 4, 0, 0, 0}, /* required */
+	{"A_ARG_TYPE_RcsID", 4, 0, 0, 0}, /* required */
+	{}
 };
 
 static const struct argument GetSearchCapabilitiesArgs[] =
 {
 	{"SearchCaps", 2, 11},
-	{0, 0}
+	{}
 };
 
 static const struct argument GetSortCapabilitiesArgs[] =
 {
 	{"SortCaps", 2, 12},
-	{0, 0}
+	{}
 };
 
 static const struct argument GetSystemUpdateIDArgs[] =
 {
 	{"Id", 2, 13},
-	{0, 0}
+	{}
 };
 
 static const struct argument UpdateObjectArgs[] =
@@ -258,7 +259,7 @@ static const struct argument UpdateObjectArgs[] =
 	{"ObjectID", 1, 1},
 	{"CurrentTagValue", 1, 10},
 	{"NewTagValue", 1, 10},
-	{0, 0}
+	{}
 };
 
 static const struct argument BrowseArgs[] =
@@ -273,7 +274,7 @@ static const struct argument BrowseArgs[] =
 	{"NumberReturned", 2, 8},
 	{"TotalMatches", 2, 8},
 	{"UpdateID", 2, 9},
-	{0, 0}
+	{}
 };
 
 static const struct argument SearchArgs[] =
@@ -288,7 +289,7 @@ static const struct argument SearchArgs[] =
 	{"NumberReturned", 2, 8},
 	{"TotalMatches", 2, 8},
 	{"UpdateID", 2, 9},
-	{0, 0}
+	{}
 };
 
 static const struct action ContentDirectoryActions[] =
@@ -309,27 +310,27 @@ static const struct action ContentDirectoryActions[] =
 	{"DeleteResource", DeleteResourceArgs}, /* O */
 	{"CreateReference", CreateReferenceArgs}, /* O */
 #endif
-	{0, 0}
+	{}
 };
 
 static const struct stateVar ContentDirectoryVars[] =
 {
 	{"TransferIDs", 0|EVENTED, 0, 0, 48}, /* 0 */
-	{"A_ARG_TYPE_ObjectID", 0, 0},
-	{"A_ARG_TYPE_Result", 0, 0},
-	{"A_ARG_TYPE_SearchCriteria", 0, 0},
-	{"A_ARG_TYPE_BrowseFlag", 0, 0, 36},
+	{"A_ARG_TYPE_ObjectID", 0, 0, 0, 0},
+	{"A_ARG_TYPE_Result", 0, 0, 0, 0},
+	{"A_ARG_TYPE_SearchCriteria", 0, 0, 0, 0},
+	{"A_ARG_TYPE_BrowseFlag", 0, 0, 36, 0},
 	/* Allowed Values : BrowseMetadata / BrowseDirectChildren */
-	{"A_ARG_TYPE_Filter", 0, 0}, /* 5 */
-	{"A_ARG_TYPE_SortCriteria", 0, 0},
-	{"A_ARG_TYPE_Index", 3, 0},
-	{"A_ARG_TYPE_Count", 3, 0},
-	{"A_ARG_TYPE_UpdateID", 3, 0},
-	{"A_ARG_TYPE_TagValueList", 0, 0},
-	{"SearchCapabilities", 0, 0},
-	{"SortCapabilities", 0, 0},
+	{"A_ARG_TYPE_Filter", 0, 0, 0, 0}, /* 5 */
+	{"A_ARG_TYPE_SortCriteria", 0, 0, 0, 0},
+	{"A_ARG_TYPE_Index", 3, 0, 0, 0},
+	{"A_ARG_TYPE_Count", 3, 0, 0, 0},
+	{"A_ARG_TYPE_UpdateID", 3, 0, 0, 0},
+	{"A_ARG_TYPE_TagValueList", 0, 0, 0, 0},
+	{"SearchCapabilities", 0, 0, 0, 0},
+	{"SortCapabilities", 0, 0, 0, 0},
 	{"SystemUpdateID", 3|EVENTED, 0, 0, 255},
-	{0, 0}
+	{}
 };
 
 static const struct argument GetIsAuthorizedArgs[] =
@@ -358,20 +359,20 @@ static const struct action X_MS_MediaReceiverRegistrarActions[] =
 	{"IsAuthorized", GetIsAuthorizedArgs}, /* R */
 	{"IsValidated", GetIsValidatedArgs}, /* R */
 	{"RegisterDevice", GetRegisterDeviceArgs},
-	{0, 0}
+	{}
 };
 
 static const struct stateVar X_MS_MediaReceiverRegistrarVars[] =
 {
-	{"A_ARG_TYPE_DeviceID", 0, 0},
-	{"A_ARG_TYPE_RegistrationReqMsg", 7, 0},
-	{"A_ARG_TYPE_RegistrationRespMsg", 7, 0},
-	{"A_ARG_TYPE_Result", 6, 0},
-	{"AuthorizationDeniedUpdateID", 3|EVENTED, 0},
-	{"AuthorizationGrantedUpdateID", 3|EVENTED, 0},
-	{"ValidationRevokedUpdateID", 3|EVENTED, 0},
-	{"ValidationSucceededUpdateID", 3|EVENTED, 0},
-	{0, 0}
+	{"A_ARG_TYPE_DeviceID", 0, 0, 0, 0},
+	{"A_ARG_TYPE_RegistrationReqMsg", 7, 0, 0, 0},
+	{"A_ARG_TYPE_RegistrationRespMsg", 7, 0, 0, 0},
+	{"A_ARG_TYPE_Result", 6, 0, 0, 0},
+	{"AuthorizationDeniedUpdateID", 3|EVENTED, 0, 0, 0},
+	{"AuthorizationGrantedUpdateID", 3|EVENTED, 0, 0, 0},
+	{"ValidationRevokedUpdateID", 3|EVENTED, 0, 0, 0},
+	{"ValidationSucceededUpdateID", 3|EVENTED, 0, 0, 0},
+	{}
 };
 
 static const struct serviceDesc scpdContentDirectory =
@@ -725,7 +726,7 @@ genEventVars(int * len, const struct serviceDesc * s, const char * servns)
 			case 255:	/* Magical values should go around here */
 				if( strcmp(v->name, "SystemUpdateID") == 0 )
 				{
-					snprintf(buf, sizeof(buf), "%d", updateID);
+					snprintf(buf, sizeof(buf), "%" PRIu32, updateID.load(std::memory_order_relaxed));
 					str = strcat_str(str, len, &tmplen, buf);
 				}
 				break;

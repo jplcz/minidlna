@@ -195,7 +195,7 @@ int log_init(const char *debug)
 	return 0;
 }
 
-void log_err(int level, enum _log_facility facility, const char *fname, int lineno, const char *fmt, ...)
+void log_err(int level, enum _log_facility facility, const char *fname, int lineno, const char * func, const char *fmt, ...)
 {
 	va_list ap;
 
@@ -231,14 +231,19 @@ void log_err(int level, enum _log_facility facility, const char *fname, int line
 	spdlog::source_loc loc;
 	loc.filename = fname;
 	loc.line = lineno;
-	loc.funcname = "";
+	loc.funcname = func;
 	
 	char temp_buffer[1024];
 	va_start(ap, fmt);
 	vsnprintf(temp_buffer, sizeof(temp_buffer), fmt, ap);
 	va_end(ap);
+
+	std::string_view to_print(temp_buffer);
+
+	if (to_print.ends_with('\n'))
+		to_print.remove_suffix(1);
 	
-	spdlog::default_logger_raw()->log(loc, spdlog_level, std::string_view(temp_buffer));
+	spdlog::default_logger_raw()->log(loc, spdlog_level, to_print);
 
 	if (level == E_FATAL) {
 		spdlog::default_logger_raw()->flush();		

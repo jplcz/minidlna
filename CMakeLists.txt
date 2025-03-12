@@ -6,6 +6,22 @@ include(CheckSourceCompiles)
 include(GNUInstallDirs)
 include(cmake/get_cpm.cmake)
 
+CPMAddPackage(
+    NAME spdlog-gh
+    GITHUB_REPOSITORY gabime/spdlog
+    GIT_TAG v1.15.1
+    OPTIONS
+    "SPDLOG_INSTALL OFF"
+    "SPDLOG_BUILD_PIC ON"
+    "BUILD_SHARED_LIBS OFF")
+
+CPMAddPackage(
+    NAME cxxopts-gh
+    GITHUB_REPOSITORY jarro2783/cxxopts
+    GIT_TAG v3.2.0
+    OPTIONS
+    "BUILD_SHARED_LIBS OFF")
+
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 add_compile_options(-fstack-protector-all)
 add_definitions(-D_FORTIFY_SOURCE=2)
@@ -309,6 +325,9 @@ target_link_libraries(minidlnad PRIVATE PkgConfig::id3tag)
 target_link_libraries(minidlnad PRIVATE PkgConfig::ogg)
 target_link_libraries(minidlnad PRIVATE PkgConfig::vorbis)
 target_link_libraries(minidlnad PRIVATE PkgConfig::flac)
+
+target_link_libraries(minidlnad PRIVATE spdlog::spdlog)
+target_link_libraries(minidlnad PRIVATE cxxopts::cxxopts)
 
 target_compile_features(minidlnad PRIVATE cxx_std_20)
 target_compile_options(minidlnad PRIVATE -Wall)

@@ -30,7 +30,7 @@
 			  (((uint8_t)((p)[0]))))
 
 static int
-_get_wavtags(char *filename, struct song_metadata *psong)
+_get_wavtags(const char *filename, struct song_metadata *psong)
 {
 	int fd;
 	uint32_t len;
@@ -148,7 +148,7 @@ _get_wavtags(char *filename, struct song_metadata *psong)
 			if(len > 65536 || len < 9)
 				goto next_block;
 
-			tags = malloc(len+1);
+			tags = (char *) malloc(len+1);
 			if(!tags)
 				goto next_block;
 
@@ -196,7 +196,7 @@ _get_wavtags(char *filename, struct song_metadata *psong)
 					psong->year = atoi(p + 8);
 				if(m)
 				{
-					*m = malloc(taglen + 1);
+					*m = (char *) malloc(taglen + 1);
 					strncpy(*m, p + 8, taglen);
 					(*m)[taglen] = '\0';
 				}
@@ -247,7 +247,7 @@ next_block:
 }
 
 static int
-_get_wavfileinfo(char *filename, struct song_metadata *psong)
+_get_wavfileinfo(const char *filename, struct song_metadata *psong)
 {
 	psong->lossless = 1;
 	/* Upon further review, WAV files should be little-endian, and DLNA requires the LPCM profile to be big-endian.

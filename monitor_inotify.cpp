@@ -132,7 +132,7 @@ monitor_add_watch(int fd, const char * path)
 		return (errno);
 	}
 
-	nw = malloc(sizeof(struct watch));
+	nw = (struct watch *) malloc(sizeof(struct watch));
 	if( nw == NULL )
 	{
 		DPRINTF(E_ERROR, L_INOTIFY, "malloc() error\n");

@@ -19,4 +19,4 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-static int _get_dfffileinfo(char *file, struct song_metadata *psong);
+static int _get_dfffileinfo(const char *file, struct song_metadata *psong);

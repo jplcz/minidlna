@@ -46,7 +46,7 @@ NameValueParserStartElt(void * d, const char * name, int l)
     if(!data->head.lh_first)
     {
         struct NameValue * nv;
-        nv = malloc(sizeof(struct NameValue)+l+1);
+        nv = (struct NameValue *) malloc(sizeof(struct NameValue)+l+1);
         strcpy(nv->name, "rootElement");
         memcpy(nv->value, name, l);
         nv->value[l] = '\0';
@@ -61,7 +61,7 @@ NameValueParserGetData(void * d, const char * datas, int l)
     struct NameValue * nv;
     if(l>1975)
         l = 1975;
-    nv = malloc(sizeof(struct NameValue)+l+1);
+    nv = (struct NameValue *)malloc(sizeof(struct NameValue)+l+1);
     strncpy(nv->name, data->curelt, 64);
     nv->name[63] = '\0';
     memcpy(nv->value, datas, l);

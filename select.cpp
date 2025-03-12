@@ -64,7 +64,7 @@ static int
 select_init(void)
 {
 
-	events = calloc(FD_SETSIZE, sizeof(struct event *));
+	events = (struct event **) calloc(FD_SETSIZE, sizeof(struct event *));
 	if (events == NULL)
 		return (ENOMEM);
 

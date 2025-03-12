@@ -121,7 +121,7 @@ newSubscriber(const char * eventurl, const char * callback, int callbacklen)
 	struct subscriber * tmp;
 	if(!eventurl || !callback || !callbacklen)
 		return NULL;
-	tmp = calloc(1, sizeof(struct subscriber)+callbacklen+1);
+	tmp = (struct subscriber *) calloc(1, sizeof(struct subscriber)+callbacklen+1);
 	if(strcmp(eventurl, CONTENTDIRECTORY_EVENTURL)==0)
 		tmp->service = EContentDirectory;
 	else if(strcmp(eventurl, CONNECTIONMGR_EVENTURL)==0)
@@ -237,7 +237,7 @@ upnp_event_create_notify(struct subscriber *sub)
 
 	assert(sub);
 
-	obj = calloc(1, sizeof(struct upnp_event_notify));
+	obj = (upnp_event_notify *) calloc(1, sizeof(struct upnp_event_notify));
 	if(!obj) {
 		DPRINTF(E_ERROR, L_HTTP, "calloc(): %s\n", strerror(errno));
 		return;
@@ -292,14 +292,14 @@ upnp_event_create_notify(struct subscriber *sub)
 	addr.sin_port = htons(port);
 	DPRINTF(E_DEBUG, L_HTTP, "'%s' %hu '%s'\n",
 	       obj->addrstr, port, obj->path);
-	obj->state = EConnecting;
+	obj->state = upnp_event_notify::EConnecting;
 	obj->ev = (struct event ){ .fd = s, .rdwr = EVENT_WRITE,
 		.process = upnp_event_process_notify, .data = obj };
 	event_module.add(&obj->ev);
 	if(connect(s, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
 		if(errno != EINPROGRESS && errno != EWOULDBLOCK) {
 			DPRINTF(E_ERROR, L_HTTP, "connect(): %s\n", strerror(errno));
-			obj->state = EError;
+			obj->state = upnp_event_notify::EError;
 			event_module.del(&obj->ev, 0);
 		}
 	}
@@ -353,7 +353,7 @@ static void upnp_event_prepare(struct upnp_event_notify * obj)
 	obj->buffersize = obj->tosend;
 	free(xml);
 	DPRINTF(E_DEBUG, L_HTTP, "Sending UPnP Event response:\n%s\n", obj->buffer);
-	obj->state = ESending;
+	obj->state = upnp_event_notify::ESending;
 }
 
 static void upnp_event_send(struct upnp_event_notify * obj)
@@ -364,14 +364,14 @@ static void upnp_event_send(struct upnp_event_notify * obj)
 		i = send(obj->ev.fd, obj->buffer + obj->sent, obj->tosend - obj->sent, 0);
 		if(i<0) {
 			DPRINTF(E_WARN, L_HTTP, "%s: send(): %s\n", "upnp_event_send", strerror(errno));
-			obj->state = EError;
+			obj->state = upnp_event_notify::EError;
 			event_module.del(&obj->ev, 0);
 			return;
 		}
 		obj->sent += i;
 	}
 	if(obj->sent == obj->tosend) {
-		obj->state = EWaitingForResponse;
+		obj->state = upnp_event_notify::EWaitingForResponse;
 		event_module.del(&obj->ev, 0);
 		obj->ev.rdwr = EVENT_READ;
 		event_module.add(&obj->ev);
@@ -384,13 +384,13 @@ static void upnp_event_recv(struct upnp_event_notify * obj)
 	n = recv(obj->ev.fd, obj->buffer, obj->buffersize, 0);
 	if(n<0) {
 		DPRINTF(E_ERROR, L_HTTP, "%s: recv(): %s\n", "upnp_event_recv", strerror(errno));
-		obj->state = EError;
+		obj->state = upnp_event_notify::EError;
 		event_module.del(&obj->ev, 0);
 		return;
 	}
 	DPRINTF(E_DEBUG, L_HTTP, "%s: (%dbytes) %.*s\n", "upnp_event_recv",
 	       n, n, obj->buffer);
-	obj->state = EFinished;
+	obj->state = upnp_event_notify::EFinished;
 	event_module.del(&obj->ev, EV_FLAG_CLOSING);
 	if(obj->sub)
 	{
@@ -403,21 +403,21 @@ static void upnp_event_recv(struct upnp_event_notify * obj)
 static void
 upnp_event_process_notify(struct event *ev)
 {
-	struct upnp_event_notify *obj = ev->data;
+	struct upnp_event_notify *obj = (struct upnp_event_notify *) ev->data;
 
 	switch(obj->state) {
-	case EConnecting:
+	case upnp_event_notify::EConnecting:
 		/* now connected or failed to connect */
 		upnp_event_prepare(obj);
 		upnp_event_send(obj);
 		break;
-	case ESending:
+	case upnp_event_notify::ESending:
 		upnp_event_send(obj);
 		break;
-	case EWaitingForResponse:
+	case upnp_event_notify::EWaitingForResponse:
 		upnp_event_recv(obj);
 		break;
-	case EFinished:
+	case upnp_event_notify::EFinished:
 		close(obj->ev.fd);
 		obj->ev.fd = -1;
 		break;
@@ -437,14 +437,14 @@ void upnpevents_gc(void)
 	obj = notifylist.lh_first;
 	while(obj != NULL) {
 		next = obj->entries.le_next;
-		if(obj->state == EError || obj->state == EFinished) {
+		if(obj->state == upnp_event_notify::EError || obj->state == upnp_event_notify::EFinished) {
 			if(obj->ev.fd >= 0) {
 				close(obj->ev.fd);
 			}
 			if(obj->sub)
 				obj->sub->notify = NULL;
 			/* remove also the subscriber from the list if there was an error */
-			if(obj->state == EError && obj->sub) {
+			if(obj->state == upnp_event_notify::EError && obj->sub) {
 				LIST_REMOVE(obj->sub, entries);
 				nsubscribers--;
 				free(obj->sub);

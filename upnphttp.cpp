@@ -88,7 +88,7 @@
 
 #define INIT_STR(s, d) { s.data = d; s.size = sizeof(d); s.off = 0; }
 
-#include "icons.c"
+#include "icons.cpp"
 
 enum event_type {
 	E_INVALID,
@@ -701,7 +701,7 @@ ProcessHTTPPOST_upnphttp(struct upnphttp * h)
 	}
 }
 
-static int
+static event_type
 check_event(struct upnphttp *h)
 {
 	enum event_type type = E_INVALID;
@@ -915,7 +915,7 @@ ProcessHttpQuery_upnphttp(struct upnphttp * h)
 
 	DPRINTF(E_DEBUG, L_HTTP, "HTTP REQUEST: %.*s\n", h->req_buflen, h->req_buf);
 	if(h->req_Host && h->req_HostLen > 0) {
-		const char *port = memchr(h->req_Host, ':', h->req_HostLen);
+		const char *port = (const char *) memchr(h->req_Host, ':', h->req_HostLen);
 		size_t ip_sz = port ? (port - h->req_Host) : h->req_HostLen;
 		struct in_addr addr;
 		char ip_buf[16];
@@ -1096,7 +1096,7 @@ static void
 Process_upnphttp(struct event *ev)
 {
 	char buf[2048];
-	struct upnphttp *h = ev->data;
+	struct upnphttp *h = (struct upnphttp *) ev->data;
 	int n;
 
 	switch(h->state)
@@ -1289,7 +1289,7 @@ SendResp_upnphttp(struct upnphttp * h)
 }
 
 static int
-send_data(struct upnphttp * h, char * header, size_t size, int flags)
+send_data(struct upnphttp * h, const char * header, size_t size, int flags)
 {
 	int n;
 
@@ -1350,7 +1350,7 @@ send_file(struct upnphttp * h, int sendfd, off_t offset, off_t end_offset)
 #endif
 		/* Fall back to regular I/O */
 		if( !buf )
-			buf = malloc(MIN_BUFFER_SIZE);
+			buf = (char *) malloc(MIN_BUFFER_SIZE);
 		send_size = (((end_offset - offset) < MIN_BUFFER_SIZE) ? (end_offset - offset + 1) : MIN_BUFFER_SIZE);
 		lseek(sendfd, offset, SEEK_SET);
 		ret = read(sendfd, buf, send_size);
@@ -1909,13 +1909,13 @@ SendResp_dlnafile(struct upnphttp *h, char *object)
 	uint32_t dlna_flags = DLNA_FLAG_DLNA_V1_5|DLNA_FLAG_HTTP_STALLING|DLNA_FLAG_TM_B;
 	uint32_t cflags = h->req_client ? h->req_client->type->flags : 0;
 	const char *tmode;
-	enum client_types ctype = h->req_client ? h->req_client->type->type : 0;
+	enum client_types ctype = h->req_client ? h->req_client->type->type : EUnknownClient;
 	static struct { int64_t id;
 	                enum client_types client;
 	                char path[PATH_MAX];
 	                char mime[32];
 	                char dlna[96];
-	              } last_file = { 0, 0 };
+	              } last_file{};
 #if USE_FORK
 	pid_t newpid = 0;
 #endif

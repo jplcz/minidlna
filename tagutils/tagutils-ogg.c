@@ -38,7 +38,7 @@ typedef struct _ogg_stream_processor {
 	int end;
 
 	int num;
-	char *type;
+	const char *type;
 
 	ogg_uint32_t serial;
 	ogg_stream_state os;
@@ -70,9 +70,9 @@ typedef struct {
 static ogg_stream_set *
 _ogg_create_stream_set(void)
 {
-	ogg_stream_set *set = calloc(1, sizeof(ogg_stream_set));
+	ogg_stream_set *set = (ogg_stream_set *) calloc(1, sizeof(ogg_stream_set));
 
-	set->streams = calloc(5, sizeof(ogg_stream_processor));
+	set->streams = (ogg_stream_processor *) calloc(5, sizeof(ogg_stream_processor));
 	set->allocated = 5;
 	set->used = 0;
 
@@ -84,7 +84,7 @@ _ogg_vorbis_process(ogg_stream_processor *stream, ogg_page *page,
 		    struct song_metadata *psong)
 {
 	ogg_packet packet;
-	ogg_misc_vorbis_info *inf = stream->data;
+	ogg_misc_vorbis_info *inf = (ogg_misc_vorbis_info *) stream->data;
 	int i, header = 0;
 
 	ogg_stream_pagein(&stream->os, page);
@@ -192,7 +192,7 @@ _ogg_vorbis_process(ogg_stream_processor *stream, ogg_page *page,
 static void
 _ogg_vorbis_end(ogg_stream_processor *stream, struct song_metadata *psong)
 {
-	ogg_misc_vorbis_info *inf = stream->data;
+	ogg_misc_vorbis_info *inf = (ogg_misc_vorbis_info *) stream->data;
 	double bitrate, time;
 
 	time = (double)inf->lastgranulepos / inf->vi.rate;
@@ -269,7 +269,7 @@ _ogg_null_start(ogg_stream_processor *stream)
 }
 
 static void
-_ogg_other_start(ogg_stream_processor *stream, char *type)
+_ogg_other_start(ogg_stream_processor *stream, const char *type)
 {
 	if(type)
 		stream->type = type;
@@ -290,7 +290,7 @@ _ogg_vorbis_start(ogg_stream_processor *stream)
 
 	stream->data = calloc(1, sizeof(ogg_misc_vorbis_info));
 
-	info = stream->data;
+	info = (ogg_misc_vorbis_info *) stream->data;
 
 	vorbis_comment_init(&info->vc);
 	vorbis_info_init(&info->vi);
@@ -340,7 +340,7 @@ _ogg_find_stream_processor(ogg_stream_set *set, ogg_page *page)
 	else
 	{
 		set->allocated += 5;
-		set->streams = realloc(set->streams, sizeof(ogg_stream_processor) * set->allocated);
+		set->streams = (ogg_stream_processor *) realloc(set->streams, sizeof(ogg_stream_processor) * set->allocated);
 		stream = &set->streams[set->used];
 	}
 	set->used++;
@@ -418,7 +418,7 @@ _ogg_get_next_page(FILE *f, ogg_sync_state *sync, ogg_page *page,
 
 
 static int
-_get_oggfileinfo(char *filename, struct song_metadata *psong)
+_get_oggfileinfo(const char *filename, struct song_metadata *psong)
 {
 	FILE *file = fopen(filename, "rb");
 	ogg_sync_state sync;
@@ -454,7 +454,7 @@ _get_oggfileinfo(char *filename, struct song_metadata *psong)
 
 		if(p->isillegal && !p->shownillegal)
 		{
-			char *constraint;
+			const char *constraint;
 			switch(p->constraint_violated)
 			{
 			case CONSTRAINT_PAGE_AFTER_EOS:

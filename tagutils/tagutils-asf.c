@@ -510,7 +510,7 @@ _asf_load_picture(FILE *fp, int size, void *bm, int *bm_size)
 }
 
 static int
-_get_asffileinfo(char *file, struct song_metadata *psong)
+_get_asffileinfo(const char *file, struct song_metadata *psong)
 {
 	FILE *fp;
 	asf_object_t hdr;
@@ -656,7 +656,7 @@ _get_asffileinfo(char *file, struct song_metadata *psong)
 				}
 				else if(!strcasecmp(buf, "WM/Picture") && (ValueType == ASF_VT_BYTEARRAY))
 				{
-					psong->image = _asf_load_picture(fp, ValueLength, psong->image, &psong->image_size);
+					psong->image = (uint8_t *) _asf_load_picture(fp, ValueLength, psong->image, &psong->image_size);
 				}
 				else if(!strcasecmp(buf, "TrackNumber") || !strcasecmp(buf, "WM/TrackNumber"))
 				{

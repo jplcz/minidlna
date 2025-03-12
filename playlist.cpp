@@ -119,7 +119,7 @@ fill_playlists(void)
 	char **result;
 	char *plpath, *plname, *fname, *last_dir;
 	unsigned int hash, last_hash = 0;
-	char class[] = "playlistContainer";
+	static const char klass[] = "playlistContainer";
 	struct song_metadata plist;
 	struct stat file;
 	char type[4];
@@ -154,7 +154,7 @@ fill_playlists(void)
 			continue;
 
 		DPRINTF(E_DEBUG, L_SCANNER, "Scanning playlist \"%s\" [%s]\n", plname, plpath);
-		if( sql_get_int_field(db, "SELECT ID from OBJECTS where PARENT_ID = '"MUSIC_PLIST_ID"'"
+		if( sql_get_int_field(db, "SELECT ID from OBJECTS where PARENT_ID = '" MUSIC_PLIST_ID "'"
 		                          " and NAME = '%q'", plname) <= 0 )
 		{
 			detailID = GetFolderMetadata(plname, NULL, NULL, NULL, 0);
@@ -162,7 +162,7 @@ fill_playlists(void)
 			             " (OBJECT_ID, PARENT_ID, DETAIL_ID, CLASS, NAME) "
 			             "VALUES"
 			             " ('%s$%llX', '%s', %lld, 'container.%s', '%q')",
-			             MUSIC_PLIST_ID, plID, MUSIC_PLIST_ID, detailID, class, plname);
+			             MUSIC_PLIST_ID, plID, MUSIC_PLIST_ID, detailID, klass, plname);
 		}
 
 		plpath = dirname(plpath);
@@ -201,7 +201,7 @@ fill_playlists(void)
 			if( !strpbrk(fname, "\\/") )
 			{
 				len = strlen(fname) + strlen(plpath) + 2;
-				plist.path = malloc(len);
+				plist.path = (char *) malloc(len);
 				snprintf(plist.path, len, "%s/%s", plpath, fname);
 				free(fname);
 				fname = plist.path;

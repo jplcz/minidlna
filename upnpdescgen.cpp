@@ -398,7 +398,7 @@ strcat_str(char * str, int * len, int * tmplen, const char * s2)
 			*tmplen += 256;
 		else
 			*tmplen += s2len + 1;
-		p = realloc(str, *tmplen);
+		p = (char *) realloc(str, *tmplen);
 		if (!p)
 		{
 			if(s2len < 256)

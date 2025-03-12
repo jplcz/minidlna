@@ -15,6 +15,10 @@
  * You should have received a copy of the GNU General Public License
  * along with MiniDLNA. If not, see <http://www.gnu.org/licenses/>.
  */
+
+#include <cstdint>
+
+extern "C" { 
 #if HAVE_FFMPEG_LIBAVUTIL_AVUTIL_H
 #include <ffmpeg/libavutil/avutil.h>
 #elif HAVE_LIBAV_LIBAVUTIL_AVUTIL_H
@@ -56,6 +60,7 @@
 #elif HAVE_AVFORMAT_H
 #include <avformat.h>
 #endif
+}
 
 #define USE_CODECPAR LIBAVFORMAT_VERSION_INT >= ((57<<16)+(50<<8)+100)
 

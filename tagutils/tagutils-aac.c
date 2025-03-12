@@ -27,7 +27,7 @@
 
 // _aac_findatom:
 static long
-_aac_findatom(FILE *fin, long max_offset, char *which_atom, int *atom_size)
+_aac_findatom(FILE *fin, long max_offset, const char *which_atom, int *atom_size)
 {
 	long current_offset = 0;
 	int size;
@@ -61,7 +61,7 @@ _aac_findatom(FILE *fin, long max_offset, char *which_atom, int *atom_size)
 
 // _get_aactags
 static int
-_get_aactags(char *file, struct song_metadata *psong)
+_get_aactags(const char *file, struct song_metadata *psong)
 {
 	FILE *fin;
 	long atom_offset;
@@ -156,7 +156,7 @@ _get_aactags(char *file, struct song_metadata *psong)
 			else if(!memcmp(current_atom, "covr", 4))
 			{
 				psong->image_size = current_size - 8 - 16;
-				if((psong->image = malloc(psong->image_size)))
+				if((psong->image = (uint8_t *) malloc(psong->image_size)))
 					memcpy(psong->image, current_data+16, psong->image_size);
 				else
 					DPRINTF(E_ERROR, L_SCANNER, "Out of memory [%s]\n", file);
@@ -178,11 +178,11 @@ _get_aactags(char *file, struct song_metadata *psong)
 
 // aac_lookforatom
 static off_t
-_aac_lookforatom(FILE *aac_fp, char *atom_path, unsigned int *atom_length)
+_aac_lookforatom(FILE *aac_fp, const char *atom_path, unsigned int *atom_length)
 {
 	long atom_offset;
 	off_t file_size;
-	char *cur_p, *end_p;
+	const char *cur_p, *end_p;
 	char atom_name[5];
 
 	fseek(aac_fp, 0, SEEK_END);
@@ -257,7 +257,7 @@ _aac_check_extended_descriptor(FILE *infile)
 
 // _get_aacfileinfo
 int
-_get_aacfileinfo(char *file, struct song_metadata *psong)
+_get_aacfileinfo(const char *file, struct song_metadata *psong)
 {
 	FILE *infile;
 	long atom_offset;
@@ -268,7 +268,7 @@ _get_aacfileinfo(char *file, struct song_metadata *psong)
 	off_t file_size;
 	int ms;
 	unsigned char buffer[2];
-	aac_object_type_t profile_id = 0;
+	aac_object_type_t profile_id{};
 
 	psong->vbr_scale = -1;
 	psong->channels = 2; // A "normal" default in case we can't find this information
@@ -353,7 +353,7 @@ _get_aacfileinfo(char *file, struct song_metadata *psong)
 			fseek(infile, 1, SEEK_CUR); // 1 bytes into section 5 should be the setup data
 			if(fread((void *)&buffer, 2, 1, infile))
 			{
-				profile_id = (buffer[0] >> 3); // first 5 bits of setup data is the Audo Profile ID
+				profile_id = (aac_object_type_t) (buffer[0] >> 3); // first 5 bits of setup data is the Audo Profile ID
 				/* Frequency index: (((buffer[0] & 0x7) << 1) | (buffer[1] >> 7))) */
 				samples = ((buffer[1] >> 3) & 0xF);
 				psong->channels = (samples == 7 ? 8 : samples);
@@ -403,9 +403,12 @@ bad_esds:
 				DPRINTF(E_DEBUG, L_METADATA, "Unhandled AAC: %d channels, %d bitrate\n",
 				                             psong->channels, psong->bitrate);
 			break;
-		default:
-			DPRINTF(E_DEBUG, L_METADATA, "Unhandled AAC type %d [%s]\n", profile_id, basename(file));
+		default: {
+			char log_filename[PATH_MAX];
+			strncpy(log_filename, file, sizeof(log_filename) - 1);
+			DPRINTF(E_DEBUG, L_METADATA, "Unhandled AAC type %d [%s]\n", profile_id, basename(log_filename));
 			break;
+		}
 	}
 
 	fclose(infile);

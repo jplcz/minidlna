@@ -78,8 +78,8 @@ do_iconv(const char* to_ces, const char* from_ces,
 
 #define N_LANG_ALT 8
 struct {
-	char *lang;
-	char *cpnames[N_LANG_ALT];
+	const char *lang;
+	const char *cpnames[N_LANG_ALT];
 } iconv_map[] = {
 	{ "ja_JP",     { "CP932", "CP950", "CP936", "ISO-8859-1", 0 } },
 	{ "zh_CN",  { "CP936", "CP950", "CP932", "ISO-8859-1", 0 } },
@@ -90,7 +90,7 @@ struct {
 static int lang_index = -1;
 
 static int
-_lang2cp(char *lang)
+_lang2cp(const char *lang)
 {
 	int cp;
 

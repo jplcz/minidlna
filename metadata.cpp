@@ -173,7 +173,7 @@ parse_nfo(const char *path, metadata_t *m)
 		return;
 	}
 	DPRINTF(E_DEBUG, L_METADATA, "Parsing .nfo file: %s\n", path);
-	buf = calloc(1, file.st_size + 1);
+	buf = (char *) calloc(1, file.st_size + 1);
 	if (!buf)
 		return;
 	nfo = fopen(path, "r");
@@ -377,7 +377,7 @@ GetAudioMetadata(const char *path, const char *name)
 			strncpyt(lang, getenv("LANG"), sizeof(lang));
 	}
 
-	if( readtags((char *)path, &song, &file, lang, type) != 0 )
+	if( readtags(path, &song, &file, lang, type) != 0 )
 	{
 		DPRINTF(E_WARN, L_METADATA, "Cannot extract tags from %s!\n", path);
 		freetags(&song);
@@ -763,7 +763,7 @@ GetVideoMetadata(const char *path, const char *name)
 				{
 					uint8_t data;
 					memcpy(&data, lav_codec_extradata(astream), 1);
-					aac_type = data >> 3;
+					aac_type = (aac_object_type_t) (data >> 3);
 				}
 				switch( aac_type )
 				{
@@ -883,7 +883,7 @@ GetVideoMetadata(const char *path, const char *name)
 				}
 				break;
 			case AV_CODEC_ID_MPEG2VIDEO:
-				m.dlna_pn = malloc(64);
+				m.dlna_pn = (char *) malloc(64);
 				off = sprintf(m.dlna_pn, "MPEG_");
 				if( strcmp(ctx->iformat->name, "mpegts") == 0 )
 				{
@@ -956,7 +956,7 @@ GetVideoMetadata(const char *path, const char *name)
 				}
 				break;
 			case AV_CODEC_ID_H264:
-				m.dlna_pn = malloc(128);
+				m.dlna_pn = (char *) malloc(128);
 				off = sprintf(m.dlna_pn, "AVC_");
 
 				if( strcmp(ctx->iformat->name, "mpegts") == 0 )
@@ -1279,7 +1279,7 @@ GetVideoMetadata(const char *path, const char *name)
 
 				if( strcmp(ctx->iformat->name, "mov,mp4,m4a,3gp,3g2,mj2") == 0 )
 				{
-					m.dlna_pn = malloc(128);
+					m.dlna_pn = (char *) malloc(128);
 					off = sprintf(m.dlna_pn, "MPEG4_P2_");
 
 					if( ends_with(path, ".3gp") )
@@ -1342,7 +1342,7 @@ GetVideoMetadata(const char *path, const char *name)
 					DPRINTF(E_DEBUG, L_METADATA, "Skipping DLNA parsing for non-ASF VC1 file %s\n", path);
 					break;
 				}
-				m.dlna_pn = malloc(64);
+				m.dlna_pn = (char *) malloc(64);
 				off = sprintf(m.dlna_pn, "WMV");
 				DPRINTF(E_DEBUG, L_METADATA, "Stream %d of %s is VC1\n", video_stream, basepath);
 				xasprintf(&m.mime, "video/x-ms-wmv");
@@ -1446,7 +1446,7 @@ GetVideoMetadata(const char *path, const char *name)
 
 	if( strcmp(ctx->iformat->name, "asf") == 0 )
 	{
-		if( readtags((char *)path, &video, &file, "en_US", "asf") == 0 )
+		if( readtags(path, &video, &file, "en_US", "asf") == 0 )
 		{
 			if( video.title && *video.title )
 			{
@@ -1552,7 +1552,7 @@ video_no_dlna:
 
 	if( !m.date )
 	{
-		m.date = malloc(20);
+		m.date = (char *) malloc(20);
 		modtime = localtime(&file.st_mtime);
 		strftime(m.date, 20, "%FT%T", modtime);
 	}

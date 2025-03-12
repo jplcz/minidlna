@@ -25,7 +25,7 @@
  */
 
 static int
-_get_mp3tags(char *file, struct song_metadata *psong)
+_get_mp3tags(const char *file, struct song_metadata *psong)
 {
 	struct id3_file *pid3file;
 	struct id3_tag *pid3tag;
@@ -73,7 +73,9 @@ _get_mp3tags(char *file, struct song_metadata *psong)
 		if(!strcmp(pid3frame->id, "YTCP"))   /* for id3v2.2 */
 		{
 			psong->compilation = 1;
-			DPRINTF(E_DEBUG, L_SCANNER, "Compilation: %d [%s]\n", psong->compilation, basename(file));
+			char log_filename[PATH_MAX];
+			strncpy(log_filename, file, sizeof(log_filename) - 1);
+			DPRINTF(E_DEBUG, L_SCANNER, "Compilation: %d [%s]\n", psong->compilation, basename(log_filename));
 		}
 		else if(!strcmp(pid3frame->id, "APIC") && !image_size)
 		{
@@ -84,7 +86,7 @@ _get_mp3tags(char *file, struct song_metadata *psong)
 				image = id3_field_getbinarydata(&pid3frame->fields[4], &image_size);
 				if( image_size )
 				{
-					psong->image = malloc(image_size);
+					psong->image = (uint8_t *) malloc(image_size);
 					memcpy(psong->image, image, image_size);
 					psong->image_size = image_size;
 					//DEBUG DPRINTF(E_DEBUG, L_SCANNER, "Found thumbnail: %d\n", psong->image_size);
@@ -540,7 +542,7 @@ _mp3_get_frame_count(FILE *infile, struct mp3_frameinfo *pfi)
 
 // _get_mp3fileinfo
 static int
-_get_mp3fileinfo(char *file, struct song_metadata *psong)
+_get_mp3fileinfo(const char *file, struct song_metadata *psong)
 {
 	FILE *infile;
 	struct id3header *pid3;

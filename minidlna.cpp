@@ -670,7 +670,7 @@ init(int argc, char **argv)
 					ary_options[i].value, strerror(errno));
 				break;
 			}
-			media_dir = calloc(1, sizeof(struct media_dir_s));
+			media_dir = (struct media_dir_s *) calloc(1, sizeof(struct media_dir_s));
 			media_dir->path = strdup(path);
 			media_dir->types = types;
 			if (media_dirs)
@@ -686,7 +686,7 @@ init(int argc, char **argv)
 		case UPNPALBUMART_NAMES:
 			for (string = ary_options[i].value; (word = strtok(string, "/")); string = NULL)
 			{
-				struct album_art_name_s * this_name = calloc(1, sizeof(struct album_art_name_s));
+				struct album_art_name_s * this_name = (struct album_art_name_s *) calloc(1, sizeof(struct album_art_name_s));
 				int len = strlen(word);
 				if (word[len-1] == '*')
 				{
@@ -1073,7 +1073,7 @@ init(int argc, char **argv)
 		DPRINTF(E_FATAL, L_GENERAL, "Failed to switch to uid '%d'. [%s] EXITING.\n",
 			uid, strerror(errno));
 
-	children = calloc(runtime_vars.max_connections, sizeof(struct child));
+	children = (struct child *) calloc(runtime_vars.max_connections, sizeof(struct child));
 	if (!children)
 	{
 		DPRINTF(E_ERROR, L_GENERAL, "Allocation failed\n");

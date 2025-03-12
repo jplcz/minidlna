@@ -47,7 +47,7 @@ extern int log_level[L_MAX];
 extern int log_init(const char *debug);
 extern void log_close(void);
 extern void log_reopen(void);
-extern void log_err(int level, enum _log_facility facility, char *fname, int lineno, char *fmt, ...)
+extern void log_err(int level, enum _log_facility facility, const char *fname, int lineno, const char *fmt, ...)
 	__attribute__((__format__ (__printf__, 5, 6)));
 
 #define DPRINTF(level, facility, fmt, arg...) do { log_err(level, facility, __FILE__, __LINE__, fmt, ##arg); } while (0)

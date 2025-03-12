@@ -72,13 +72,13 @@ struct my_dst_mgr {
 static void
 my_dst_mgr_init(j_compress_ptr cinfo)
 {
-	struct my_dst_mgr *dst = (void *)cinfo->dest;
+	struct my_dst_mgr *dst = (struct my_dst_mgr *)cinfo->dest;
 
 	dst->used = 0;
 	dst->sz = cinfo->image_width
 		  * cinfo->image_height
 		  * cinfo->input_components;
-	dst->buf = malloc(dst->sz * sizeof *dst->buf);
+	dst->buf = (JOCTET *) malloc(dst->sz * sizeof *dst->buf);
 	dst->off = dst->buf;
 	dst->jdst.next_output_byte = dst->off;
 	dst->jdst.free_in_buffer = dst->sz;
@@ -89,11 +89,11 @@ my_dst_mgr_init(j_compress_ptr cinfo)
 static boolean
 my_dst_mgr_empty(j_compress_ptr cinfo)
 {
-	struct my_dst_mgr *dst = (void *)cinfo->dest;
+	struct my_dst_mgr *dst = (struct my_dst_mgr *)cinfo->dest;
 
 	dst->sz *= 2;
 	dst->used = dst->off - dst->buf;
-	dst->buf = realloc(dst->buf, dst->sz * sizeof *dst->buf);
+	dst->buf = (JOCTET *) realloc(dst->buf, dst->sz * sizeof *dst->buf);
 	dst->off = dst->buf + dst->used;
 	dst->jdst.next_output_byte = dst->off;
 	dst->jdst.free_in_buffer = dst->sz - dst->used;
@@ -104,7 +104,7 @@ my_dst_mgr_empty(j_compress_ptr cinfo)
 static void
 my_dst_mgr_term(j_compress_ptr cinfo)
 {
-	struct my_dst_mgr *dst = (void *)cinfo->dest;
+	struct my_dst_mgr *dst = (struct my_dst_mgr *)cinfo->dest;
 
 	dst->used += dst->sz - dst->jdst.free_in_buffer;
 	dst->off = dst->buf + dst->used;
@@ -118,7 +118,7 @@ jpeg_memory_dest(j_compress_ptr cinfo, struct my_dst_mgr *dst)
 	dst->jdst.init_destination = my_dst_mgr_init;
 	dst->jdst.empty_output_buffer = my_dst_mgr_empty;
 	dst->jdst.term_destination = my_dst_mgr_term;
-	cinfo->dest = (void *)dst;
+	cinfo->dest = (jpeg_destination_mgr *)dst;
 
 	return;
 }
@@ -140,7 +140,7 @@ init_source(j_decompress_ptr cinfo)
 static boolean
 fill_input_buffer(j_decompress_ptr cinfo)
 {
-	struct my_src_mgr *src = (void *)cinfo->src;
+	struct my_src_mgr *src = (my_src_mgr *)cinfo->src;
 
 	/* Create a fake EOI marker */
 	src->eoi_buffer[0] = (JOCTET) 0xFF;
@@ -154,7 +154,7 @@ fill_input_buffer(j_decompress_ptr cinfo)
 static void
 skip_input_data(j_decompress_ptr cinfo, long num_bytes)
 {
-	struct my_src_mgr *src = (void *)cinfo->src;
+	struct my_src_mgr *src = (my_src_mgr *)cinfo->src;
 	if (num_bytes > 0)
 	{
 		while (num_bytes > (long)src->pub.bytes_in_buffer)
@@ -179,8 +179,8 @@ jpeg_memory_src(j_decompress_ptr cinfo, const unsigned char * buffer, size_t buf
 	struct my_src_mgr *src;
 
 	if (!cinfo->src)
-		cinfo->src = (*cinfo->mem->alloc_small)((void *)cinfo, JPOOL_PERMANENT, sizeof(struct my_src_mgr));;
-	src = (void *)cinfo->src;
+		cinfo->src = (jpeg_source_mgr *)(*cinfo->mem->alloc_small)((j_common_ptr)cinfo, JPOOL_PERMANENT, sizeof(struct my_src_mgr));;
+	src = (my_src_mgr *)cinfo->src;
 	src->pub.init_source = init_source;
 	src->pub.fill_input_buffer = fill_input_buffer;
 	src->pub.skip_input_data = skip_input_data;
@@ -345,7 +345,7 @@ image_get_jpeg_date_xmp(const char * path, char ** date)
 				continue;
 			}
 
-			newdata = realloc(data, 30);
+			newdata = (char *) realloc(data, 30);
 			if( !newdata )
 				break;
 			data = newdata;
@@ -360,7 +360,7 @@ image_get_jpeg_date_xmp(const char * path, char ** date)
 				continue;
 			}
 
-			newdata = realloc(data, offset+1);
+			newdata = (char *) realloc(data, offset+1);
 			if( !newdata )
 				break;
 			data = newdata;
@@ -375,7 +375,7 @@ image_get_jpeg_date_xmp(const char * path, char ** date)
 				ClearNameValueList(&xml);
 				break;
 			}
-			*date = realloc(*date, strlen(exif)+1);
+			*date = (char *) realloc(*date, strlen(exif)+1);
 			strcpy(*date, exif);
 			ClearNameValueList(&xml);
 
@@ -496,7 +496,7 @@ image_new_from_jpeg(const char *path, int is_file, const uint8_t *buf, int size,
 	{
 		int rx, ry;
 		ofs = 0;
-		if((ptr = malloc(w * 3 * cinfo.rec_outbuf_height + 16)) == NULL)
+		if((ptr = (unsigned char *) malloc(w * 3 * cinfo.rec_outbuf_height + 16)) == NULL)
 		{
 			DPRINTF(E_WARN, L_METADATA, "malloc failed\n");
 			jpeg_destroy_decompress(&cinfo);
@@ -530,7 +530,7 @@ image_new_from_jpeg(const char *path, int is_file, const uint8_t *buf, int size,
 		ofs = 0;
 		for(i = 0; i < cinfo.rec_outbuf_height; i++)
 		{
-			if((line[i] = malloc(w)) == NULL)
+			if((line[i] = (unsigned char *) malloc(w)) == NULL)
 			{
 				int t = 0;
 
@@ -819,7 +819,7 @@ image_save_to_jpeg_buf(image_s * pimage, int * size)
 	jpeg_set_quality(&cinfo, JPEG_QUALITY, TRUE);
 	jpeg_start_compress(&cinfo, TRUE);
 	row_stride = cinfo.image_width * 3;
-	if((data = malloc(row_stride)) == NULL)
+	if((data = (char *) malloc(row_stride)) == NULL)
 	{
 		DPRINTF(E_WARN, L_METADATA, "malloc failed\n");
 		free(dst.buf);

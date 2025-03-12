@@ -36,7 +36,7 @@
 #include "log.h"
 
 int
-xasprintf(char **strp, char *fmt, ...)
+xasprintf(char **strp, const char *fmt, ...)
 {
 	va_list args;
 	int ret;
@@ -98,10 +98,10 @@ trim(char *str)
 }
 
 /* Find the first occurrence of p in s, where s is terminated by t */
-char *
+const char *
 strstrc(const char *s, const char *p, const char t)
 {
-	char *endptr;
+	const char *endptr;
 	size_t slen, plen;
 
 	endptr = strchr(s, t);
@@ -121,10 +121,10 @@ strstrc(const char *s, const char *p, const char t)
 	return NULL;
 } 
 
-char *
+const char *
 strcasestrc(const char *s, const char *p, const char t)
 {
-	char *endptr;
+	const char *endptr;
 	size_t slen, plen;
 
 	endptr = strchr(s, t);
@@ -136,7 +136,7 @@ strcasestrc(const char *s, const char *p, const char t)
 	while (slen >= plen)
 	{
 		if (*s == *p && strncasecmp(s+1, p+1, plen-1) == 0)
-			return (char*)s;
+			return s;
 		s++;
 		slen--;
 	}
@@ -167,7 +167,7 @@ modifyString(char *string, const char *before, const char *after, int noalloc)
 			chgcnt++;
 			s = p + oldlen;
 		}
-		s = realloc(string, strlen(string)+((newlen-oldlen)*chgcnt)+1);
+		s = (char *) realloc(string, strlen(string)+((newlen-oldlen)*chgcnt)+1);
 		/* If we failed to realloc, return the original alloc'd string */
 		if( s )
 			string = s;
@@ -484,7 +484,7 @@ is_album_art(const char * name)
 	return (album_art_name ? 1 : 0);
 }
 
-int
+file_types
 resolve_unknown_type(const char * path, media_types dir_type)
 {
 	struct stat entry;

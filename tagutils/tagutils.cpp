@@ -33,6 +33,8 @@
 #include <time.h>
 #include <sys/time.h>
 #include <netinet/in.h>
+#include <libgen.h>
+
 #ifdef HAVE_VORBISFILE
 #include <ogg/ogg.h>
 #include <vorbis/codec.h>
@@ -55,7 +57,7 @@ struct id3header {
 	unsigned char size[4];
 } __attribute((packed));
 
-char *winamp_genre[] = {
+const char *winamp_genre[] = {
 	/*00*/ "Blues",             "Classic Rock",     "Country",           "Dance",
 	       "Disco",             "Funk",             "Grunge",            "Hip-Hop",
 	/*08*/ "Jazz",              "Metal",            "New Age",           "Oldies",
@@ -123,9 +125,9 @@ static int _get_fileinfo(char *file, struct song_metadata *psong);
  */
 
 typedef struct {
-	char* type;
-	int (*get_tags)(char* file, struct song_metadata* psong);
-	int (*get_fileinfo)(char* file, struct song_metadata* psong);
+	const char* type;
+	int (*get_tags)(const char* file, struct song_metadata* psong);
+	int (*get_fileinfo)(const char* file, struct song_metadata* psong);
 } taghandler;
 
 static taghandler taghandlers[] = {
@@ -191,7 +193,7 @@ freetags(struct song_metadata *psong)
 
 // _get_fileinfo
 static int
-_get_fileinfo(char *file, struct song_metadata *psong)
+_get_fileinfo(const char *file, struct song_metadata *psong)
 {
 	taghandler *hdl;
 
@@ -253,7 +255,7 @@ _make_composite_tags(struct song_metadata *psong)
 /*****************************************************************************/
 // _get_tags
 static int
-_get_tags(char *file, struct song_metadata *psong)
+_get_tags(const char *file, struct song_metadata *psong)
 {
 	taghandler *hdl;
 
@@ -273,7 +275,7 @@ _get_tags(char *file, struct song_metadata *psong)
 /*****************************************************************************/
 // readtags
 int
-readtags(char *path, struct song_metadata *psong, struct stat *stat, char *lang, char *type)
+readtags(const char *path, struct song_metadata *psong, struct stat *stat, const char *lang, const char *type)
 {
 	char *fname;
 

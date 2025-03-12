@@ -37,7 +37,7 @@
 			  (((uint16_t)((p)[1]))))
 
 static int
-_get_dfffileinfo(char *file, struct song_metadata *psong)
+_get_dfffileinfo(const char *file, struct song_metadata *psong)
 {
 	FILE *fp;
 	uint32_t len;

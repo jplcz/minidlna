@@ -36,7 +36,7 @@
 			  (((uint8_t)((p)[0]))))
 
 static int
-_get_dsftags(char *file, struct song_metadata *psong)
+_get_dsftags(const char *file, struct song_metadata *psong)
 {
 	struct id3_tag *pid3tag;
 	struct id3_frame *pid3frame;
@@ -174,7 +174,9 @@ _get_dsftags(char *file, struct song_metadata *psong)
 		if (!strcmp(pid3frame->id, "YTCP"))   /* for id3v2.2 */
 		{
 			psong->compilation = 1;
-			DPRINTF(E_DEBUG, L_SCANNER, "Compilation: %d [%s]\n", psong->compilation, basename(file));
+			char log_filename[PATH_MAX];
+			strncpy(log_filename, file, sizeof(log_filename) - 1);
+			DPRINTF(E_DEBUG, L_SCANNER, "Compilation: %d [%s]\n", psong->compilation, basename(log_filename));
 		}
 		else if (!strcmp(pid3frame->id, "APIC") && !image_size)
 		{
@@ -185,7 +187,7 @@ _get_dsftags(char *file, struct song_metadata *psong)
 				image = id3_field_getbinarydata(&pid3frame->fields[4], &image_size);
 				if (image_size)
 				{
-					psong->image = malloc(image_size);
+					psong->image = (uint8_t *) malloc(image_size);
 					memcpy(psong->image, image, image_size);
 					psong->image_size = image_size;
 					//DEBUG DPRINTF(E_DEBUG, L_SCANNER, "Found thumbnail: %d\n", psong->image_size);
@@ -365,7 +367,7 @@ _get_dsftags(char *file, struct song_metadata *psong)
 }
 
 static int
-_get_dsffileinfo(char *file, struct song_metadata *psong)
+_get_dsffileinfo(const char *file, struct song_metadata *psong)
 {
 	FILE *fp;
 	int len = 80;

@@ -612,7 +612,7 @@ parse_sort_criteria(char *sortCriteria, int *error)
 
 	if( (item = strtok_r(sortCriteria, ",", &saveptr)) )
 	{
-		order = malloc(4096);
+		order = (char *) malloc(4096);
 		str.data = order;
 		str.size = 4096;
 		str.off = 0;
@@ -729,7 +729,7 @@ _alphasort_alt_title(char **title, char **alt_title, int requested, int returned
 }
 
 inline static void
-add_resized_res(int srcw, int srch, int reqw, int reqh, char *dlna_pn,
+add_resized_res(int srcw, int srch, int reqw, int reqh, const char *dlna_pn,
                 char *detailID, struct Response *args)
 {
 	int dstw = reqw;
@@ -840,7 +840,7 @@ callback(void *args, int argc, char **argv, char **azColName)
 	(void)argc;
 	(void)azColName;
 	struct Response *passed_args = (struct Response *)args;
-	char *id = argv[0], *parent = argv[1], *refID = argv[2], *detailID = argv[3], *class = argv[4], *size = argv[5], *title = argv[6],
+	char *id = argv[0], *parent = argv[1], *refID = argv[2], *detailID = argv[3], *klass = argv[4], *size = argv[5], *title = argv[6],
 	     *duration = argv[7], *bitrate = argv[8], *sampleFrequency = argv[9], *artist = argv[10], *album = argv[11],
 	     *genre = argv[12], *comment = argv[13], *nrAudioChannels = argv[14], *track = argv[15], *date = argv[16], *resolution = argv[17],
 	     *tn = argv[18], *creator = argv[19], *dlna_pn = argv[20], *mime = argv[21], *album_art = argv[22], *rotate = argv[23], *disc = argv[24];
@@ -856,7 +856,7 @@ callback(void *args, int argc, char **argv, char **azColName)
 		if( (str->size+DEFAULT_RESP_SIZE) <= MAX_RESPONSE_SIZE )
 		{
 #endif
-			str->data = realloc(str->data, (str->size+DEFAULT_RESP_SIZE));
+			str->data = (char *) realloc(str->data, (str->size+DEFAULT_RESP_SIZE));
 			if( str->data )
 			{
 				str->size += DEFAULT_RESP_SIZE;
@@ -882,7 +882,7 @@ callback(void *args, int argc, char **argv, char **azColName)
 	passed_args->returned++;
 	passed_args->flags &= ~RESPONSE_FLAGS;
 
-	if( strncmp(class, "item", 4) == 0 )
+	if( strncmp(klass, "item", 4) == 0 )
 	{
 		uint32_t dlna_flags = DLNA_FLAG_DLNA_V1_5|DLNA_FLAG_HTTP_STALLING|DLNA_FLAG_TM_B;
 		char *alt_title = NULL;
@@ -1014,7 +1014,7 @@ callback(void *args, int argc, char **argv, char **azColName)
 		ret = strcatf(str, "&gt;"
 		                   "&lt;dc:title&gt;%s&lt;/dc:title&gt;"
 		                   "&lt;upnp:class&gt;object.%s&lt;/upnp:class&gt;",
-		                   title, class);
+		                   title, klass);
 		if( comment && (passed_args->filter & FILTER_DC_DESCRIPTION) ) {
 			ret = strcatf(str, "&lt;dc:description&gt;%.384s&lt;/dc:description&gt;", comment);
 		}
@@ -1234,7 +1234,7 @@ callback(void *args, int argc, char **argv, char **azColName)
 		}
 		ret = strcatf(str, "&lt;/item&gt;");
 	}
-	else if( strncmp(class, "container", 9) == 0 )
+	else if( strncmp(klass, "container", 9) == 0 )
 	{
 		ret = strcatf(str, "&lt;container id=\"%s\" parentID=\"%s\" restricted=\"1\" ", id, parent);
 		if( passed_args->filter & FILTER_SEARCHABLE ) {
@@ -1253,8 +1253,8 @@ callback(void *args, int argc, char **argv, char **azColName)
 		ret = strcatf(str, "&gt;"
 		                   "&lt;dc:title&gt;%s&lt;/dc:title&gt;"
 		                   "&lt;upnp:class&gt;object.%s&lt;/upnp:class&gt;",
-		                   title, class);
-		if( (passed_args->filter & FILTER_UPNP_STORAGEUSED) || strcmp(class+10, "storageFolder") == 0 ) {
+		                   title, klass);
+		if( (passed_args->filter & FILTER_UPNP_STORAGEUSED) || strcmp(klass+10, "storageFolder") == 0 ) {
 			/* TODO: Implement real folder size tracking */
 			ret = strcatf(str, "&lt;upnp:storageUsed&gt;%s&lt;/upnp:storageUsed&gt;", (size ? size : "-1"));
 		}
@@ -1276,18 +1276,18 @@ callback(void *args, int argc, char **argv, char **azColName)
 			                   lan_addr[passed_args->iface].str, runtime_vars.port, album_art, detailID);
 		}
 		if( passed_args->filter & FILTER_AV_MEDIA_CLASS ) {
-			char class;
+			char klass;
 			if( strncmp(id, MUSIC_ID, sizeof(MUSIC_ID)) == 0 )
-				class = 'M';
+				klass = 'M';
 			else if( strncmp(id, VIDEO_ID, sizeof(VIDEO_ID)) == 0 )
-				class = 'V';
+				klass = 'V';
 			else if( strncmp(id, IMAGE_ID, sizeof(IMAGE_ID)) == 0 )
-				class = 'P';
+				klass = 'P';
 			else
-				class = 0;
-			if( class )
+				klass = 0;
+			if( klass )
 				ret = strcatf(str, "&lt;av:mediaClass xmlns:av=\"urn:schemas-sony-com:av\"&gt;"
-				                    "%c&lt;/av:mediaClass&gt;", class);
+				                    "%c&lt;/av:mediaClass&gt;", klass);
 		}
 		ret = strcatf(str, "&lt;/container&gt;");
 	}
@@ -1360,7 +1360,7 @@ BrowseContentDirectory(struct upnphttp * h, const char * action)
 		goto browse_error;
 	}
 
-	str.data = malloc(DEFAULT_RESP_SIZE);
+	str.data = (char *) malloc(DEFAULT_RESP_SIZE);
 	str.size = DEFAULT_RESP_SIZE;
 	str.off = sprintf(str.data, "%s", resp0);
 	/* See if we need to include DLNA namespace reference */
@@ -1376,8 +1376,8 @@ BrowseContentDirectory(struct upnphttp * h, const char * action)
 
 	args.returned = 0;
 	args.requested = RequestedCount;
-	args.client = h->req_client ? h->req_client->type->type : 0;
-	args.flags = h->req_client ? h->req_client->type->flags : 0;
+	args.client = h->req_client ? h->req_client->type->type : EUnknownClient;
+	args.flags = h->req_client ? h->req_client->type->flags : EUnknownClient;
 	args.str = &str;
 	DPRINTF(E_DEBUG, L_HTTP, "Browsing ContentDirectory:\n"
 	                         " * ObjectID: %s\n"
@@ -1542,14 +1542,14 @@ parse_search_criteria(const char *str, char *sep)
 {
 	struct string_s criteria;
 	int len;
-	int literal = 0, like = 0, class = 0;
+	int literal = 0, like = 0, klass = 0;
 	const char *s;
 
 	if (!str)
 		return strdup("1 = 1");
 
 	len = strlen(str) + 32;
-	criteria.data = malloc(len);
+	criteria.data = (char *) malloc(len);
 	criteria.size = len;
 	criteria.off = 0;
 
@@ -1592,9 +1592,9 @@ parse_search_criteria(const char *str, char *sep)
 				}
 				break;
 			case 'o':
-				if (class)
+				if (klass)
 				{
-					class = 0;
+					klass = 0;
 					if (strncmp(s, "object.", 7) == 0)
 						s += 7;
 					else if (strncmp(s, "object\"", 7) == 0 ||
@@ -1745,7 +1745,7 @@ parse_search_criteria(const char *str, char *sep)
 					charcat(&criteria, *s);
 				break;
 			case 'o':
-				if (class)
+				if (klass)
 				{
 					if (strncmp(s, "object.", 7) == 0)
 					{
@@ -1758,7 +1758,7 @@ parse_search_criteria(const char *str, char *sep)
 						}
 						charcat(&criteria, '"');
 					}
-					class = 0;
+					klass = 0;
 					continue;
 				}
 			case 'u':
@@ -1766,7 +1766,7 @@ parse_search_criteria(const char *str, char *sep)
 				{
 					strcatf(&criteria, "o.CLASS");
 					s += 10;
-					class = 1;
+					klass = 1;
 					continue;
 				}
 				else if (strncmp(s, "upnp:actor", 10) == 0)
@@ -1868,7 +1868,7 @@ SearchContentDirectory(struct upnphttp * h, const char * action)
 		}
 	}
 
-	str.data = malloc(DEFAULT_RESP_SIZE);
+	str.data = (char *) malloc(DEFAULT_RESP_SIZE);
 	str.size = DEFAULT_RESP_SIZE;
 	str.off = sprintf(str.data, "%s", resp0);
 	/* See if we need to include DLNA namespace reference */
@@ -1882,8 +1882,8 @@ SearchContentDirectory(struct upnphttp * h, const char * action)
 
 	args.returned = 0;
 	args.requested = RequestedCount;
-	args.client = h->req_client ? h->req_client->type->type : 0;
-	args.flags = h->req_client ? h->req_client->type->flags : 0;
+	args.client = h->req_client ? h->req_client->type->type : EUnknownClient;
+	args.flags = h->req_client ? h->req_client->type->flags : EUnknownClient;
 	args.str = &str;
 	DPRINTF(E_DEBUG, L_HTTP, "Searching ContentDirectory:\n"
 	                         " * ObjectID: %s\n"
@@ -2024,28 +2024,28 @@ QueryStateVariable(struct upnphttp * h, const char * action)
 	ClearNameValueList(&data);
 }
 
-static int _set_watch_count(long long id, const char *old, const char *new)
+static int _set_watch_count(long long id, const char *old, const char *new_v)
 {
 	int64_t rowid = sqlite3_last_insert_rowid(db);
 	int ret;
 
 	ret = sql_exec(db, "INSERT or IGNORE into BOOKMARKS (ID, WATCH_COUNT)"
-			   " VALUES (%lld, %Q)", id, new ?: "1");
+			   " VALUES (%lld, %Q)", id, new_v ?: "1");
 	if (sqlite3_last_insert_rowid(db) != rowid)
 		return 0;
 
-	if (!new) /* Increment */
+	if (!new_v) /* Increment */
 		ret = sql_exec(db, "UPDATE BOOKMARKS set WATCH_COUNT ="
 				   " ifnull(WATCH_COUNT,'0') + 1"
 				   " where ID = %lld", id);
 	else if (old && old[0])
 		ret = sql_exec(db, "UPDATE BOOKMARKS set WATCH_COUNT = %Q"
 				   " where WATCH_COUNT = %Q and ID = %lld",
-				   new, old, id);
+				   new_v, old, id);
 	else
 		ret = sql_exec(db, "UPDATE BOOKMARKS set WATCH_COUNT = %Q"
 				   " where ID = %lld",
-				   new, id);
+				   new_v, id);
 	return ret;
 }
 
@@ -2102,7 +2102,7 @@ static void UpdateObject(struct upnphttp * h, const char * action)
 	char *CurrentTagValue = GetValueFromNameValueList(&data, "CurrentTagValue");
 	char *NewTagValue = GetValueFromNameValueList(&data, "NewTagValue");
 	const char *rid = ObjectID;
-	char tag[32], current[32], new[32];
+	char tag[32], current[32], new_v[32];
 	char *item, *saveptr = NULL;
 	int64_t detailID;
 	int ret = 1;
@@ -2132,19 +2132,19 @@ static void UpdateObject(struct upnphttp * h, const char * action)
 		if (sscanf(item, "&lt;%31[^&]&gt;%31[^&]", tag, current) != 2)
 			continue;
 		p = strstr(NewTagValue, tag);
-		if (!p || sscanf(p, "%*[^&]&gt;%31[^&]", new) != 1)
+		if (!p || sscanf(p, "%*[^&]&gt;%31[^&]", new_v) != 1)
 			continue;
 
-		DPRINTF(E_DEBUG, L_HTTP, "Setting %s to %s\n", tag, new);
+		DPRINTF(E_DEBUG, L_HTTP, "Setting %s to %s\n", tag, new_v);
 		/* Kodi uses incorrect tag "upnp:playCount" instead of "upnp:playbackCount" */
 		if (strcmp(tag, "upnp:playbackCount") == 0 || strcmp(tag, "upnp:playCount") == 0)
 		{
-			ret = _set_watch_count(detailID, current, new);
+			ret = _set_watch_count(detailID, current, new_v);
 		}
 		else if (strcmp(tag, "upnp:lastPlaybackPosition") == 0)
 		{
 
-			int sec = duration_sec(new);
+			int sec = duration_sec(new_v);
 			if( h->req_client && (h->req_client->type->flags & FLAG_CONVERT_MS) ) {
 				sec /= 1000;
 			}
@@ -2294,7 +2294,7 @@ soapMethods[] =
 void
 ExecuteSoapAction(struct upnphttp * h, const char * action, int n)
 {
-	char * p;
+	const char * p;
 
 	p = strchr(action, '#');
 	if(p)
@@ -2302,7 +2302,7 @@ ExecuteSoapAction(struct upnphttp * h, const char * action, int n)
 		int i = 0;
 		int len;
 		int methodlen;
-		char * p2;
+		const char * p2;
 		p++;
 		p2 = strchr(p, '"');
 		if(p2)

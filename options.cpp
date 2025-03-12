@@ -160,7 +160,7 @@ readoptionsfile(const char * fname)
 		else
 		{
 			num_options++;
-			t = realloc(ary_options, num_options * sizeof(struct option));
+			t = (char *) realloc(ary_options, num_options * sizeof(struct option));
 			if(!t)
 			{
 				fprintf(stderr, "memory allocation error: %s=%s\n",

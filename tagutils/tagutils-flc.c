@@ -21,7 +21,7 @@
  */
 
 static int
-_get_flctags(char *filename, struct song_metadata *psong)
+_get_flctags(const char *filename, struct song_metadata *psong)
 {
 	FLAC__Metadata_SimpleIterator *iterator = 0;
 	FLAC__StreamMetadata *block;
@@ -84,7 +84,7 @@ _get_flctags(char *filename, struct song_metadata *psong)
 				break;
 			}
 			psong->image_size = block->data.picture.data_length;
-			if((psong->image = malloc(psong->image_size)))
+			if((psong->image = (uint8_t *) malloc(psong->image_size)))
 				memcpy(psong->image, block->data.picture.data, psong->image_size);
 			else
 				DPRINTF(E_ERROR, L_SCANNER, "Out of memory [%s]\n", filename);
@@ -105,7 +105,7 @@ _get_flctags(char *filename, struct song_metadata *psong)
 }
 
 static int
-_get_flcfileinfo(char *filename, struct song_metadata *psong)
+_get_flcfileinfo(const char *filename, struct song_metadata *psong)
 {
 	psong->lossless = 1;
 	psong->vbr_scale = 1;

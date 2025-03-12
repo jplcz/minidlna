@@ -42,8 +42,8 @@ struct mp3_frameinfo {
 	int is_valid;
 };
 
-static int _get_mp3tags(char *file, struct song_metadata *psong);
-static int _get_mp3fileinfo(char *file, struct song_metadata *psong);
+static int _get_mp3tags(const char *file, struct song_metadata *psong);
+static int _get_mp3fileinfo(const char *file, struct song_metadata *psong);
 static int _decode_mp3_frame(unsigned char *frame, struct mp3_frameinfo *pfi);
 
 // bitrate_tbl[layer_index][bitrate_index]

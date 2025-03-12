@@ -205,9 +205,9 @@ monitor_insert_file(const char *name, const char *path)
 
 	/* Find the parentID. If it's not found, create all necessary parents. */
 	len = strlen(path)+1;
-	if( !(path_buf = malloc(len)) ||
-	    !(last_dir = malloc(len)) ||
-	    !(base_name = malloc(len)) )
+	if( !(path_buf = (char *) malloc(len)) ||
+	    !(last_dir = (char *) malloc(len)) ||
+	    !(base_name = (char *) malloc(len)) )
 		return -1;
 	base_copy = base_name;
 	while( depth )

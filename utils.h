@@ -72,11 +72,11 @@ static inline int is_dir(const struct dirent *d)
 	return -1;
 #endif
 }
-int xasprintf(char **strp, char *fmt, ...) __attribute__((__format__ (__printf__, 2, 3)));
+int xasprintf(char **strp, const char *fmt, ...) __attribute__((__format__ (__printf__, 2, 3)));
 int ends_with(const char * haystack, const char * needle);
 char *trim(char *str);
-char *strstrc(const char *s, const char *p, const char t);
-char *strcasestrc(const char *s, const char *p, const char t);
+const char *strstrc(const char *s, const char *p, const char t);
+const char *strcasestrc(const char *s, const char *p, const char t);
 char *modifyString(char *string, const char *before, const char *after, int noalloc);
 char *escape_tag(const char *tag, int force_alloc);
 char *unescape_tag(const char *tag, int force_alloc);
@@ -94,7 +94,7 @@ media_types get_media_type(const char *file);
 media_types valid_media_types(const char *path);
 
 int is_album_art(const char * name);
-int resolve_unknown_type(const char * path, media_types dir_type);
+file_types resolve_unknown_type(const char * path, media_types dir_type);
 const char *mime_to_ext(const char * mime);
 
 /* Others */

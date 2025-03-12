@@ -4,6 +4,7 @@ project(minidlna)
 include(CheckSymbolExists)
 include(CheckSourceCompiles)
 include(GNUInstallDirs)
+include(cmake/get_cpm.cmake)
 
 find_package(Threads REQUIRED)
 find_package(PkgConfig)

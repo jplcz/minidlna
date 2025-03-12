@@ -95,7 +95,7 @@ gen_dir_hash(const char *path)
 	char dir[PATH_MAX], *base;
 	int len;
 
-	strncpy(dir, path, sizeof(dir));
+	strncpy(dir, path, sizeof(dir) - 1);
 	dir[sizeof(dir)-1] = '\0';
 	base = strrchr(dir, '/');
 	if( !base )

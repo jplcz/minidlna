@@ -28,6 +28,8 @@
 #include <dirent.h>
 #include <sys/param.h>
 
+#include <memory>
+
 #include "minidlnatypes.h"
 
 /* String functions */
@@ -53,8 +55,10 @@ strcatf(struct string_s *str, const char *fmt, ...)
 }
 static inline void strncpyt(char *dst, const char *src, size_t len)
 {
-	strncpy(dst, src, --len);
-	dst[len] = '\0';
+	const std::string_view source(src);
+	const size_t copy_length = std::min(len - 1, source.size());
+	memcpy(dst, source.data(), copy_length);
+	dst[copy_length] = '\0';
 }
 static inline int is_reg([[maybe_unused]] const struct dirent *d)
 {

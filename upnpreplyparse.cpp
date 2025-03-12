@@ -62,7 +62,8 @@ NameValueParserGetData(void * d, const char * datas, int l)
     if(l>1975)
         l = 1975;
     nv = (struct NameValue *)malloc(sizeof(struct NameValue)+l+1);
-    strncpy(nv->name, data->curelt, 64);
+    static_assert(sizeof(nv->name) == sizeof(data->curelt));
+    memcpy(nv->name, data->curelt, sizeof(nv->name));
     nv->name[63] = '\0';
     memcpy(nv->value, datas, l);
     nv->value[l] = '\0';

@@ -25,16 +25,28 @@ set(ROOTDEV_MODELURL
     "${OS_URL}"
     CACHE STRING "")
 set(OS_VERSION CACHE STRING "")
-set(DEFAULT_LOG_PATH "/var/log" CACHE STRING "")
-set(DEFAULT_DB_PATH "/var/cache/minidlna" CACHE STRING "")
-set(OS_NAME "" CACHE STRING "")
+set(DEFAULT_LOG_PATH
+    "/var/log"
+    CACHE STRING "")
+set(DEFAULT_DB_PATH
+    "/var/cache/minidlna"
+    CACHE STRING "")
+set(OS_NAME
+    ""
+    CACHE STRING "")
 
-if (OS_VERSION STREQUAL "")
-    execute_process(COMMAND uname -r OUTPUT_VARIABLE OS_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE)
+if(OS_VERSION STREQUAL "")
+  execute_process(
+    COMMAND uname -r
+    OUTPUT_VARIABLE OS_VERSION
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
 endif()
 
-if (OS_NAME STREQUAL "")
-    execute_process(COMMAND uname -s OUTPUT_VARIABLE OS_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE)
+if(OS_NAME STREQUAL "")
+  execute_process(
+    COMMAND uname -s
+    OUTPUT_VARIABLE OS_VERSION
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
 endif()
 
 check_symbol_exists(clock_gettime "time.h" HAVE_CLOCK_GETTIME)
@@ -167,10 +179,10 @@ check_source_compiles(
     int main(void) {
         return 0;
     }"
-    HAVE_SYS_INOTIFY_H)
+  HAVE_SYS_INOTIFY_H)
 
-if (HAVE_SYS_INOTIFY_H)
-    set(HAVE_INOTIFY ON)
+if(HAVE_SYS_INOTIFY_H)
+  set(HAVE_INOTIFY ON)
 endif()
 
 option(TIVO_SUPPORT "whether to enable TiVo support" OFF)
@@ -217,53 +229,69 @@ pkg_check_modules(id3tag REQUIRED IMPORTED_TARGET id3tag)
 pkg_check_modules(ogg REQUIRED IMPORTED_TARGET ogg)
 pkg_check_modules(vorbis REQUIRED IMPORTED_TARGET vorbis)
 pkg_check_modules(flac REQUIRED IMPORTED_TARGET flac)
+pkg_check_modules(vorbisfile IMPORTED_TARGET vorbisfile)
+pkg_check_modules(avahi-client IMPORTED_TARGET avahi-client)
+
+add_executable(minidlnad)
+
+if(vorbisfile_FOUND)
+  set(HAVE_VORBISFILE ON)
+  target_link_libraries(minidlnad PRIVATE PkgConfig::vorbisfile)
+endif()
+
+if(avahi-client_FOUND)
+  set(HAVE_AVAHI ON)
+  target_link_libraries(minidlnad PRIVATE PkgConfig::avahi-client)
+endif()
 
 configure_file(config.h.in config.h)
 
-add_executable(
+target_sources(
   minidlnad
-  minidlna.c
-  upnphttp.c
-  upnpdescgen.c
-  upnpsoap.c
-  upnpreplyparse.c
-  minixml.c
-  clients.c
-  getifaddr.c
-  process.c
-  upnpglobalvars.c
-  options.c
-  minissdp.c
-  uuid.c
-  upnpevents.c
-  sql.c
-  utils.c
-  metadata.c
-  scanner.c
-  monitor.c
-  tivo_utils.c
-  tivo_beacon.c
-  tivo_commands.c
-  playlist.c
-  image_utils.c
-  albumart.c
-  log.c
-  containers.c
-  avahi.c
-  tagutils/tagutils.c)
+  PRIVATE minidlna.c
+          upnphttp.c
+          upnpdescgen.c
+          upnpsoap.c
+          upnpreplyparse.c
+          minixml.c
+          clients.c
+          getifaddr.c
+          process.c
+          upnpglobalvars.c
+          options.c
+          minissdp.c
+          uuid.c
+          upnpevents.c
+          sql.c
+          utils.c
+          metadata.c
+          scanner.c
+          monitor.c
+          tivo_utils.c
+          tivo_beacon.c
+          tivo_commands.c
+          playlist.c
+          image_utils.c
+          albumart.c
+          log.c
+          containers.c
+          avahi.c
+          tagutils/tagutils.c)
 
-if (HAVE_SYS_INOTIFY_H)
-    target_sources(minidlnad PRIVATE monitor_inotify.c)
+if(HAVE_SYS_INOTIFY_H)
+  target_sources(minidlnad PRIVATE monitor_inotify.c)
 endif()
 
-if (HAVE_KQUEUE)
-    target_sources(minidlnad PRIVATE kqueue.c monitor_kqueue.c)
+if(HAVE_KQUEUE)
+  target_sources(minidlnad PRIVATE kqueue.c monitor_kqueue.c)
 else()
-    target_sources(minidlnad PRIVATE select.c)
+  target_sources(minidlnad PRIVATE select.c)
 endif()
 
 target_include_directories(minidlnad PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(minidlnad PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
+target_link_libraries(minidlnad PRIVATE Threads::Threads)
 
 target_link_libraries(minidlnad PRIVATE PkgConfig::libavutil)
 target_link_libraries(minidlnad PRIVATE PkgConfig::libavcodec)

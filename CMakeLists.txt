@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(minidlna)
+project(minidlna LANGUAGES C CXX)
 
 include(CheckSymbolExists)
 include(CheckSourceCompiles)
@@ -304,3 +304,5 @@ target_link_libraries(minidlnad PRIVATE PkgConfig::id3tag)
 target_link_libraries(minidlnad PRIVATE PkgConfig::ogg)
 target_link_libraries(minidlnad PRIVATE PkgConfig::vorbis)
 target_link_libraries(minidlnad PRIVATE PkgConfig::flac)
+
+target_compile_features(minidlnad PRIVATE cxx_std_20)

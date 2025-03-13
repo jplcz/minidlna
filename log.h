@@ -21,6 +21,8 @@
 #ifndef __ERR_H__
 #define __ERR_H__
 
+#include <spdlog/spdlog.h>
+
 #define E_OFF       0
 #define E_FATAL     1
 #define E_ERROR     2
@@ -47,10 +49,64 @@ extern int log_level[L_MAX];
 extern int log_init(const char *debug);
 extern void log_close(void);
 extern void log_reopen(void);
-extern void log_err(int level, enum _log_facility facility, const char *fname, int lineno, const char * func, const char *fmt, ...)
-	__attribute__((__format__ (__printf__, 6, 7)));
+extern void log_err(int level, enum _log_facility facility, const char *fname,
+                    int lineno, const char *func, const char *fmt, ...)
+    __attribute__((__format__(__printf__, 6, 7)));
 
-#define DPRINTF(level, facility, fmt, arg...) do { log_err(level, facility, __FILE__, __LINE__, __FUNCTION__, fmt, ##arg); } while (0)
+constexpr inline spdlog::level::level_enum to_spdlog_level(const int level) {
+  spdlog::level::level_enum spdlog_level = spdlog::level::trace;
 
+  switch (level) {
+  case E_OFF:
+    spdlog_level = spdlog::level::trace;
+    break;
+  case E_FATAL:
+    spdlog_level = spdlog::level::critical;
+    break;
+  case E_ERROR:
+    spdlog_level = spdlog::level::err;
+    break;
+  case E_WARN:
+    spdlog_level = spdlog::level::warn;
+    break;
+  case E_INFO:
+    spdlog_level = spdlog::level::info;
+    break;
+  case E_DEBUG:
+    spdlog_level = spdlog::level::debug;
+    break;
+  default:
+    spdlog_level = spdlog::level::trace;
+    break;
+  }
+
+  return spdlog_level;
+}
+
+template <typename... Args>
+void cxx_log_err(const int level, enum _log_facility facility,
+                 const spdlog::source_loc &loc,
+                 spdlog::format_string_t<Args...> fmt, Args &&...args) {
+  if (level && level > log_level[facility] && level > E_FATAL)
+    return;
+  const auto spdlog_level = to_spdlog_level(level);
+  spdlog::default_logger_raw()->log(loc, spdlog_level, fmt,
+                                    std::forward<Args>(args)...);
+  if (level == E_FATAL) {
+    spdlog::default_logger_raw()->flush();
+    exit(-1);
+  }
+}
+
+#define DPRINTF(level, facility, fmt, arg...)                                  \
+  do {                                                                         \
+    log_err(level, facility, __FILE__, __LINE__, __FUNCTION__, fmt, ##arg);    \
+  } while (0)
+#define DPRINTX(level, facility, fmt, arg...)                                  \
+  do {                                                                         \
+    cxx_log_err(level, facility,                                               \
+                spdlog::source_loc{__FILE__, __LINE__, SPDLOG_FUNCTION},       \
+                FMT_STRING(fmt), ##arg);                                       \
+  } while (0)
 
 #endif /* __ERR_H__ */

@@ -202,31 +202,7 @@ void log_err(int level, enum _log_facility facility, const char *fname, int line
 	if (level && level > log_level[facility] && level > E_FATAL)
 		return;
 
-	spdlog::level::level_enum spdlog_level = spdlog::level::trace;
-
-	switch (level) {
-	case E_OFF:
-		spdlog_level = spdlog::level::trace;
-		break;
-	case E_FATAL:
-		spdlog_level = spdlog::level::critical;
-		break;
-	case E_ERROR:
-		spdlog_level = spdlog::level::err;
-		break;
-	case E_WARN:
-		spdlog_level = spdlog::level::warn;
-		break;
-	case E_INFO:
-		spdlog_level = spdlog::level::info;
-		break;
-	case E_DEBUG:
-		spdlog_level = spdlog::level::debug;
-		break;
-	default:
-		spdlog_level = spdlog::level::trace;
-		break;
-	}
+	spdlog::level::level_enum spdlog_level = to_spdlog_level(level);
 
 	spdlog::source_loc loc;
 	loc.filename = fname;

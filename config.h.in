@@ -1,25 +1,25 @@
 #ifndef __CONFIG_H__
 #define __CONFIG_H__
 
-#cmakedefine HAVE_STRUCT_IP_MREQN 1
+#cmakedefine HAVE_STRUCT_IP_MREQN
 
-#cmakedefine HAVE_STRUCT_IP_MREQ 1
+#cmakedefine HAVE_STRUCT_IP_MREQ
 
-#cmakedefine HAVE_NETLINK 1
+#cmakedefine HAVE_NETLINK
 
-#cmakedefine USE_DAEMON 1
+#cmakedefine USE_DAEMON
 
 #cmakedefine SCANDIR_CONST 1 
 
-#cmakedefine HAVE_LINUX_SENDFILE_API 1
+#cmakedefine HAVE_LINUX_SENDFILE_API
 
-#cmakedefine HAVE_DARWIN_SENDFILE_API 1
+#cmakedefine HAVE_DARWIN_SENDFILE_API
 
-#cmakedefine TIVO_SUPPORT 1
+#cmakedefine TIVO_SUPPORT
 
-#cmakedefine NETGEAR 1
+#cmakedefine NETGEAR
 
-#cmakedefine READYNAS 1
+#cmakedefine READYNAS
 
 #cmakedefine HAVE_CLOCK_GETTIME 1
 
@@ -52,5 +52,7 @@
 #cmakedefine CONFIG_LOG_SYSLOG
 
 #cmakedefine HAVE_SYSTEMD
+
+#cmakedefine ENABLE_NLS
 
 #endif

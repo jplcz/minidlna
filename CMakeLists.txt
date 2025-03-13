@@ -30,6 +30,8 @@ add_link_options(-Wl,-z,relro)
 
 find_package(Threads REQUIRED)
 find_package(PkgConfig)
+find_package(Gettext)
+find_package(Intl)
 
 set(OS_URL
     "https://github.com/jplcz/minidlna"
@@ -296,6 +298,15 @@ elseif (LOG_BACKEND MATCHES "systemd")
   target_link_libraries(minidlnad PRIVATE PkgConfig::libsystemd)
 elseif (LOG_BACKEND MATCHES "syslog")
   set(CONFIG_LOG_SYSLOG ON)
+endif()
+
+if (Intl_FOUND)
+  set(ENABLE_NLS ON)
+  target_link_libraries(minidlnad PRIVATE Intl::Intl)
+endif()
+
+if (GETTEXT_FOUND)
+  add_subdirectory(po)
 endif()
 
 configure_file(config.h.in config.h)

@@ -58,6 +58,7 @@
 #include <sqlite3.h>
 
 #include <atomic>
+#include <string>
 
 #define MINIDLNA_VERSION "1.3.3"
 
@@ -214,7 +215,7 @@ extern uint32_t runtime_flags;
 #define GETFLAG(mask)	(runtime_flags & mask)
 #define CLEARFLAG(mask)	runtime_flags &= ~mask
 
-extern const char *pidfilename;
+extern std::string pidfilename;
 
 #define UUIDVALUE_MAX_LEN 42
 extern char uuidvalue[];

@@ -29,6 +29,8 @@
 #include <sys/param.h>
 
 #include <memory>
+#include <string>
+#include <filesystem>
 
 #include "minidlnatypes.h"
 

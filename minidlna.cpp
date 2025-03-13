@@ -439,63 +439,60 @@ rescan:
 }
 
 static int
-writepidfile(const char *fname, int pid, uid_t uid)
+writepidfile(const std::filesystem::path& path, int pid, uid_t uid)
 {
-	FILE *pidfile;
-	struct stat st;
-	char path[PATH_MAX], *dir;
-	int ret = 0;
+  int ret = 0;
 
-	if(!fname || *fname == '\0')
+	if(path.empty())
 		return -1;
 
+	const auto dir = path.parent_path();
+
 	/* Create parent directory if it doesn't already exist */
-	strncpyt(path, fname, sizeof(path));
-	dir = dirname(path);
-	if (stat(dir, &st) == 0)
+	if (exists(dir))
 	{
-		if (!S_ISDIR(st.st_mode))
+		if (!is_directory(dir))
 		{
-			DPRINTF(E_ERROR, L_GENERAL, "Pidfile path is not a directory: %s\n",
-				fname);
+			DPRINTX(E_ERROR, L_GENERAL, "Pidfile path is not a directory: {}",
+				path.string());
 			return -1;
 		}
 	}
 	else
 	{
-		if (make_dir(dir, S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH|S_IXOTH) != 0)
+          if (std::error_code ec; !create_directories(dir, ec))
 		{
-			DPRINTF(E_ERROR, L_GENERAL, "Unable to create pidfile directory: %s\n",
-				fname);
+			DPRINTX(E_ERROR, L_GENERAL, "Unable to create pidfile directory: {} ({})",
+				dir.string(), ec.message());
 			return -1;
 		}
 		if (uid > 0)
 		{
-			if (chown(dir, uid, -1) != 0)
-				DPRINTF(E_WARN, L_GENERAL, "Unable to change pidfile %s ownership: %s\n",
-					dir, strerror(errno));
+			if (chown(dir.string().c_str(), uid, -1) != 0)
+				DPRINTX(E_WARN, L_GENERAL, "Unable to change pidfile {} ownership: {}",
+					dir.string(), strerror(errno));
 		}
 	}
 	
-	pidfile = fopen(fname, "w");
+	FILE *pidfile = fopen(path.string().c_str(), "w");
 	if (!pidfile)
 	{
-		DPRINTF(E_ERROR, L_GENERAL, "Unable to open pidfile for writing %s: %s\n",
-			fname, strerror(errno));
+		DPRINTX(E_ERROR, L_GENERAL, "Unable to open pidfile for writing {}: {}\n",
+			path.string(), strerror(errno));
 		return -1;
 	}
 
 	if (fprintf(pidfile, "%d\n", pid) <= 0)
 	{
-		DPRINTF(E_ERROR, L_GENERAL, 
-			"Unable to write to pidfile %s: %s\n", fname, strerror(errno));
+		DPRINTX(E_ERROR, L_GENERAL,
+			"Unable to write to pidfile {}: {}", path.string(), strerror(errno));
 		ret = -1;
 	}
 	if (uid > 0)
 	{
 		if (fchown(fileno(pidfile), uid, -1) != 0)
-			DPRINTF(E_WARN, L_GENERAL, "Unable to change pidfile %s ownership: %s\n",
-				fname, strerror(errno));
+			DPRINTX(E_WARN, L_GENERAL, "Unable to change pidfile {} ownership: {}",
+				path.string(), strerror(errno));
 	}
 
 	fclose(pidfile);
@@ -993,7 +990,7 @@ init(int argc, char **argv)
 			"\t-S changes behaviour for systemd/launchd\n"
 #endif
 			"\t-V print the version number\n",
-			argv[0], pidfilename);
+			argv[0], pidfilename.c_str());
 		return 1;
 	}
 
@@ -1058,7 +1055,7 @@ init(int argc, char **argv)
 		DPRINTF(E_FATAL, L_GENERAL, "Failed to set %s handler. EXITING.\n", "SIGCHLD");
 
 	if (writepidfile(pidfilename, pid, uid) != 0)
-		pidfilename = NULL;
+		pidfilename = {};
 
 	if (uid > 0)
 	{
@@ -1374,8 +1371,8 @@ shutdown:
 
 	upnpevents_removeSubscribers();
 
-	if (pidfilename && unlink(pidfilename) < 0)
-		DPRINTF(E_ERROR, L_GENERAL, "Failed to remove pidfile %s: %s\n", pidfilename, strerror(errno));
+	if (!pidfilename.empty() && !remove(std::filesystem::path(pidfilename)))
+		DPRINTX(E_ERROR, L_GENERAL, "Failed to remove pidfile {}: {}", pidfilename, strerror(errno));
 
 	log_close();
 	freeoptions();

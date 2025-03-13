@@ -30,6 +30,7 @@
 #define __PROCESS_H__
 
 #include <unistd.h>
+#include <string>
 #include "clients.h"
 
 struct child {
@@ -71,7 +72,7 @@ int process_daemonize(void);
  * @return 0 if no other instance is running, -1 if the file name is invalid,
  *         -2 if another instance is running.
  */
-int process_check_if_running(const char *fname);
+int process_check_if_running(const std::string& fname);
 
 /**
  * Kill all child processes

@@ -176,19 +176,17 @@ process_daemonize(void)
 }
 
 int
-process_check_if_running(const char *fname)
+process_check_if_running(const std::string& fname)
 {
-	char buffer[64];
+	char buffer[64]{};
 	int pidfile;
 	pid_t pid;
 
-	if(!fname || *fname == '\0')
+	if(fname.empty())
 		return -1;
 
-	if( (pidfile = open(fname, O_RDONLY)) < 0)
+	if( (pidfile = open(fname.c_str(), O_RDONLY)) < 0)
 		return 0;
-
-	memset(buffer, 0, 64);
 
 	if(read(pidfile, buffer, 63) > 0)
 	{

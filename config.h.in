@@ -1,0 +1,56 @@
+#ifndef __CONFIG_H__
+#define __CONFIG_H__
+
+#cmakedefine HAVE_STRUCT_IP_MREQN 1
+
+#cmakedefine HAVE_STRUCT_IP_MREQ 1
+
+#cmakedefine HAVE_NETLINK 1
+
+#cmakedefine USE_DAEMON 1
+
+#cmakedefine SCANDIR_CONST 1 
+
+#cmakedefine HAVE_LINUX_SENDFILE_API 1
+
+#cmakedefine HAVE_DARWIN_SENDFILE_API 1
+
+#cmakedefine TIVO_SUPPORT 1
+
+#cmakedefine NETGEAR 1
+
+#cmakedefine READYNAS 1
+
+#cmakedefine HAVE_CLOCK_GETTIME 1
+
+#cmakedefine OS_URL "${OS_URL}"
+#cmakedefine ROOTDEV_MANUFACTURER "${ROOTDEV_MANUFACTURER}"
+#cmakedefine ROOTDEV_MANUFACTURERURL "${ROOTDEV_MANUFACTURERURL}"
+#cmakedefine ROOTDEV_MODELNAME "${ROOTDEV_MODELNAME}"
+#cmakedefine ROOTDEV_MODELDESCRIPTION "${ROOTDEV_MODELDESCRIPTION}"
+#cmakedefine ROOTDEV_MODELURL "${ROOTDEV_MODELURL}"
+#cmakedefine OS_VERSION "${OS_VERSION}"
+#cmakedefine DEFAULT_LOG_PATH "${DEFAULT_LOG_PATH}"
+#cmakedefine DEFAULT_DB_PATH "${DEFAULT_DB_PATH}"
+#cmakedefine OS_NAME "${OS_NAME}"
+
+#define HAVE_LIBAVUTIL_AVUTIL_H 1
+#define HAVE_LIBAVCODEC_AVCODEC_H 1
+#define HAVE_LIBAVFORMAT_AVFORMAT_H 1
+
+#cmakedefine HAVE_SYS_INOTIFY_H
+#cmakedefine HAVE_INOTIFY
+
+#cmakedefine HAVE_KQUEUE
+
+#cmakedefine HAVE_VORBISFILE
+
+#cmakedefine HAVE_AVAHI
+
+#cmakedefine CONFIG_LOG_ANDROID
+#cmakedefine CONFIG_LOG_SYSTEMD
+#cmakedefine CONFIG_LOG_SYSLOG
+
+#cmakedefine HAVE_SYSTEMD
+
+#endif

@@ -44,6 +44,12 @@ find_package(PkgConfig)
 find_package(Gettext)
 find_package(Intl)
 find_package(Qt6 COMPONENTS Widgets DBus Gui)
+find_package(Boost 1.73 CONFIG)
+
+if(NOT Boost_FOUND)
+  # For legacy cmake
+  find_package(Boost 1.73 REQUIRED)
+endif()
 
 set(OS_URL
     "https://github.com/jplcz/minidlna"
@@ -399,6 +405,7 @@ target_link_libraries(minidlna_impl PUBLIC PkgConfig::id3tag)
 target_link_libraries(minidlna_impl PUBLIC PkgConfig::ogg)
 target_link_libraries(minidlna_impl PUBLIC PkgConfig::vorbis)
 target_link_libraries(minidlna_impl PUBLIC PkgConfig::flac)
+target_link_libraries(minidlna_impl PUBLIC Boost::boost)
 
 target_link_libraries(minidlna_impl PUBLIC spdlog::spdlog)
 target_link_libraries(minidlna_impl PUBLIC cxxopts::cxxopts)

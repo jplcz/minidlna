@@ -26,16 +26,16 @@ typedef void event_vnode_process_t(struct event *, u_int);
 #endif
 
 struct event {
-  int fd;
-  int index;
-  event_t rdwr;
+  int fd = -1;
+  int index = -1;
+  event_t rdwr{};
   union {
-    event_process_t *process;
+    event_process_t *process = nullptr;
 #ifdef HAVE_KQUEUE
     event_vnode_process_t *process_vnode;
 #endif
   };
-  void *data;
+  void *data = nullptr;
 };
 
 typedef int event_module_add_t(struct event *);

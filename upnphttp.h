@@ -49,6 +49,7 @@
 #ifndef __UPNPHTTP_H__
 #define __UPNPHTTP_H__
 
+#include <boost/intrusive/list.hpp>
 #include <netinet/in.h>
 #include <sys/queue.h>
 
@@ -75,42 +76,41 @@ enum httpCommands {
   EUnSubscribe
 };
 
-struct upnphttp {
-  struct event ev;
-  struct in_addr clientaddr; /* client address */
-  int iface;
-  int state;
-  char HttpVer[16];
+struct upnphttp : boost::intrusive::list_base_hook<> {
+  struct event ev{};
+  struct in_addr clientaddr{}; /* client address */
+  int iface = 0;
+  int state = 0;
+  char HttpVer[16]{};
   /* request */
-  char *req_buf;
-  int req_buflen;
-  int req_contentlen;
-  int req_contentoff; /* header length */
-  enum httpCommands req_command;
-  struct client_cache_s *req_client;
-  const char *req_soapAction;
-  int req_soapActionLen;
-  const char *req_Host; /* Host: header */
-  int req_HostLen;
-  const char *req_Callback; /* For SUBSCRIBE */
-  int req_CallbackLen;
-  const char *req_NT;
-  int req_NTLen;
-  int req_Timeout;
-  const char *req_SID; /* For UNSUBSCRIBE */
-  int req_SIDLen;
-  off_t req_RangeStart;
-  off_t req_RangeEnd;
-  long int req_chunklen;
-  uint32_t reqflags;
+  char *req_buf = nullptr;
+  int req_buflen = 0;
+  int req_contentlen = 0;
+  int req_contentoff = 0; /* header length */
+  enum httpCommands req_command = EUnknown;
+  struct client_cache_s *req_client = nullptr;
+  const char *req_soapAction = nullptr;
+  int req_soapActionLen = 0;
+  const char *req_Host = nullptr; /* Host: header */
+  int req_HostLen = 0;
+  const char *req_Callback = nullptr; /* For SUBSCRIBE */
+  int req_CallbackLen = 0;
+  const char *req_NT = nullptr;
+  int req_NTLen = 0;
+  int req_Timeout = 0;
+  const char *req_SID = nullptr; /* For UNSUBSCRIBE */
+  int req_SIDLen = 0;
+  off_t req_RangeStart = 0;
+  off_t req_RangeEnd = 0;
+  long int req_chunklen = 0;
+  uint32_t reqflags = 0;
   /* response */
-  char *res_buf;
-  int res_buflen;
-  int res_buf_alloclen;
-  uint32_t respflags;
+  char *res_buf = nullptr;
+  int res_buflen = 0;
+  int res_buf_alloclen = 0;
+  uint32_t respflags = 0;
   /*int res_contentlen;*/
   /*int res_contentoff;*/ /* header length */
-  LIST_ENTRY(upnphttp) entries;
 };
 
 #define FLAG_TIMEOUT 0x00000001

@@ -107,7 +107,7 @@
 #define sqlite3_threadsafe() 0
 #endif
 
-static LIST_HEAD(httplisthead, upnphttp) upnphttphead;
+static boost::intrusive::list<upnphttp> upnphttphead;
 
 /* OpenAndConfHTTPSocket() :
  * setup the socket used to handle incoming HTTP connections. */
@@ -172,7 +172,7 @@ static void ProcessListen(struct event *ev) {
     tmp = New_upnphttp(shttp);
     if (tmp) {
       tmp->clientaddr = clientname.sin_addr;
-      LIST_INSERT_HEAD(&upnphttphead, tmp, entries);
+      upnphttphead.push_front(*tmp);
     } else {
       DPRINTF(E_ERROR, L_GENERAL, "New_upnphttp() failed\n");
       close(shttp);
@@ -1038,8 +1038,6 @@ int service_main(int argc, char **argv) {
   int ret, i;
   int shttpl = -1;
   int smonitor = -1;
-  struct upnphttp *e = 0;
-  struct upnphttp *next;
   struct timeval tv, timeofday, lastnotifytime = {0, 0};
   time_t lastupdatetime = 0, lastdbtime = 0;
   int last_changecnt = 0;
@@ -1067,8 +1065,6 @@ int service_main(int argc, char **argv) {
     DPRINTF(E_WARN, L_GENERAL,
             "SQLite library is old.  Please use version 3.5.1 or newer.\n");
   }
-
-  LIST_INIT(&upnphttphead);
 
   ret = open_db(NULL);
   if (ret == 0) {
@@ -1228,8 +1224,7 @@ int service_main(int argc, char **argv) {
     /* increment SystemUpdateID if the content database has changed,
      * and if there is an active HTTP connection, at most once every 2 seconds
      */
-    if (!LIST_EMPTY(&upnphttphead) &&
-        (timeofday.tv_sec >= (lastupdatetime + 2))) {
+    if (!upnphttphead.empty() && (timeofday.tv_sec >= (lastupdatetime + 2))) {
       if (GETFLAG(SCANNING_MASK)) {
         time_t dbtime = _get_dbtime();
         if (dbtime != lastdbtime) {
@@ -1245,13 +1240,9 @@ int service_main(int argc, char **argv) {
       }
     }
     /* delete finished HTTP connections */
-    for (e = upnphttphead.lh_first; e != NULL; e = next) {
-      next = e->entries.le_next;
-      if (e->state >= 100) {
-        LIST_REMOVE(e, entries);
-        Delete_upnphttp(e);
-      }
-    }
+    upnphttphead.remove_and_dispose_if(
+        [](const auto &e) { return e.state >= 100; },
+        [](auto *e) { Delete_upnphttp(e); });
   }
 
 shutdown:
@@ -1260,11 +1251,7 @@ shutdown:
     kill(scanner_pid, SIGKILL);
 
   /* close out open sockets */
-  while (upnphttphead.lh_first != NULL) {
-    e = upnphttphead.lh_first;
-    LIST_REMOVE(e, entries);
-    Delete_upnphttp(e);
-  }
+  upnphttphead.clear_and_dispose([](auto e) { Delete_upnphttp(e); });
   if (sssdp >= 0)
     close(sssdp);
   if (shttpl >= 0)

@@ -108,15 +108,13 @@ struct upnphttp *New_upnphttp(int s) {
   struct upnphttp *ret;
   if (s < 0)
     return NULL;
-  ret = (struct upnphttp *)malloc(sizeof(struct upnphttp));
+  ret = new (std::nothrow) upnphttp();
   if (ret == NULL)
     return NULL;
-  memset(ret, 0, sizeof(struct upnphttp));
-  ret->ev = (struct event){.fd = s,
-                           .index = 0,
-                           .rdwr = EVENT_READ,
-                           .process = Process_upnphttp,
-                           .data = ret};
+  ret->ev.fd = s;
+  ret->ev.rdwr = EVENT_READ;
+  ret->ev.process = Process_upnphttp;
+  ret->ev.data = ret;
   event_module.add(&ret->ev);
   return ret;
 }
@@ -134,11 +132,12 @@ void CloseSocket_upnphttp(struct upnphttp *h) {
 
 void Delete_upnphttp(struct upnphttp *h) {
   if (h) {
+    assert(!h->is_linked());
     if (h->ev.fd >= 0)
       CloseSocket_upnphttp(h);
     free(h->req_buf);
     free(h->res_buf);
-    free(h);
+    delete h;
   }
 }
 

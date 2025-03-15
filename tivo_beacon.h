@@ -26,25 +26,21 @@
 /*
  *  * A saved copy of a beacon from another tivo or another server
  *   */
-struct aBeacon
-{
+struct aBeacon {
 #ifdef DEBUG
-   time_t lastSeen;
+  time_t lastSeen;
 #endif
-   char * machine;
-   char * identity;
-   struct aBeacon *next;
+  char *machine;
+  char *identity;
+  struct aBeacon *next;
 };
 
-uint32_t
-getBcastAddress();
+uint32_t getBcastAddress();
 
-int
-OpenAndConfTivoBeaconSocket();
+int OpenAndConfTivoBeaconSocket();
 
-void
-sendBeaconMessage(int fd, struct sockaddr_in * client, int len, int broadcast);
+void sendBeaconMessage(int fd, struct sockaddr_in *client, int len,
+                       int broadcast);
 
-void
-ProcessTiVoBeacon(struct event *);
+void ProcessTiVoBeacon(struct event *);
 #endif

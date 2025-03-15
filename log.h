@@ -23,17 +23,16 @@
 
 #include <spdlog/spdlog.h>
 
-#define E_OFF       0
-#define E_FATAL     1
-#define E_ERROR     2
-#define E_WARN      3
-#define E_INFO      4
-#define E_DEBUG     5
-#define E_MAXDEBUG  6
+#define E_OFF 0
+#define E_FATAL 1
+#define E_ERROR 2
+#define E_WARN 3
+#define E_INFO 4
+#define E_DEBUG 5
+#define E_MAXDEBUG 6
 
-enum _log_facility
-{
-  L_GENERAL=0,
+enum _log_facility {
+  L_GENERAL = 0,
   L_ARTWORK,
   L_DB_SQL,
   L_INOTIFY,

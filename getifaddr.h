@@ -30,13 +30,9 @@
 #define __GETIFADDR_H__
 #include <arpa/inet.h>
 
-#define MACADDR_IS_ZERO(x) \
-  ((x[0] == 0x00) && \
-   (x[1] == 0x00) && \
-   (x[2] == 0x00) && \
-   (x[3] == 0x00) && \
-   (x[4] == 0x00) && \
-   (x[5] == 0x00))
+#define MACADDR_IS_ZERO(x)                                                     \
+  ((x[0] == 0x00) && (x[1] == 0x00) && (x[2] == 0x00) && (x[3] == 0x00) &&     \
+   (x[4] == 0x00) && (x[5] == 0x00))
 
 int getsyshwaddr(char *buf, int len);
 int get_remote_mac(struct in_addr ip_addr, unsigned char *mac);
@@ -46,4 +42,3 @@ int OpenAndConfMonitorSocket();
 void ProcessMonitorEvent(struct event *);
 
 #endif
-

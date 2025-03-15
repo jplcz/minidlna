@@ -24,6 +24,8 @@
 #ifndef __ALBUMART_H__
 #define __ALBUMART_H__
 
+#include <cstdint>
+
 void update_if_album_art(const char *path);
 int64_t find_album_art(const char *path, uint8_t *image_data, int image_size);
 

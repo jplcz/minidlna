@@ -27,194 +27,169 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
+#include <errno.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <errno.h>
 #include <string.h>
-#include <signal.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <sys/wait.h>
+#include <unistd.h>
 
 #include "config.h"
 #include "event.h"
-#include "upnpglobalvars.h"
-#include "process.h"
 #include "log.h"
+#include "process.h"
+#include "upnpglobalvars.h"
 
 struct child *children = NULL;
 int number_of_children = 0;
 
-static void
-add_process_info(pid_t pid, struct client_cache_s *client)
-{
-	struct child *child;
-	int i;
+static void add_process_info(pid_t pid, struct client_cache_s *client) {
+  struct child *child;
+  int i;
 
-	for (i = 0; i < runtime_vars.max_connections; i++)
-	{
-		child = children+i;
-		if (child->pid)
-			continue;
-		child->pid = pid;
-		child->client = client;
-		child->age = time(NULL);
-		break;
-	}
+  for (i = 0; i < runtime_vars.max_connections; i++) {
+    child = children + i;
+    if (child->pid)
+      continue;
+    child->pid = pid;
+    child->client = client;
+    child->age = time(NULL);
+    break;
+  }
 }
 
-static inline void
-remove_process_info(pid_t pid)
-{
-	struct child *child;
-	int i;
+static inline void remove_process_info(pid_t pid) {
+  struct child *child;
+  int i;
 
-	for (i = 0; i < runtime_vars.max_connections; i++)
-	{
-		child = children+i;
-		if (child->pid != pid)
-			continue;
-		child->pid = 0;
-		if (child->client)
-			child->client->connections--;
-		break;
-	}
+  for (i = 0; i < runtime_vars.max_connections; i++) {
+    child = children + i;
+    if (child->pid != pid)
+      continue;
+    child->pid = 0;
+    if (child->client)
+      child->client->connections--;
+    break;
+  }
 }
 
-pid_t
-process_fork(struct client_cache_s *client)
-{
-	if (number_of_children >= runtime_vars.max_connections)
-	{
-		DPRINTF(E_WARN, L_GENERAL, "Exceeded max connections [%d], not forking\n",
-			runtime_vars.max_connections);
-		errno = EAGAIN;
-		return -1;
-	}
+pid_t process_fork(struct client_cache_s *client) {
+  if (number_of_children >= runtime_vars.max_connections) {
+    DPRINTF(E_WARN, L_GENERAL, "Exceeded max connections [%d], not forking\n",
+            runtime_vars.max_connections);
+    errno = EAGAIN;
+    return -1;
+  }
 
-	pid_t pid = fork();
-	if (pid > 0)
-	{
-		if (client)
-			client->connections++;
-		add_process_info(pid, client);
-		number_of_children++;
-	} else if (pid == 0)
-		event_module.fini();
-	else
-		DPRINTF(E_FATAL, L_GENERAL, "Fork() failed: %s\n", strerror(errno));
+  pid_t pid = fork();
+  if (pid > 0) {
+    if (client)
+      client->connections++;
+    add_process_info(pid, client);
+    number_of_children++;
+  } else if (pid == 0)
+    event_module.fini();
+  else
+    DPRINTF(E_FATAL, L_GENERAL, "Fork() failed: %s\n", strerror(errno));
 
-	return pid;
+  return pid;
 }
 
-void
-process_handle_child_termination(int)
-{
-	pid_t pid;
+void process_handle_child_termination(int) {
+  pid_t pid;
 
-	while ((pid = waitpid(-1, NULL, WNOHANG)))
-	{
-		if (pid == -1)
-		{
-			if (errno == EINTR)
-				continue;
-			else
-				break;
-		}
-		if (number_of_children)
-			number_of_children--;
-		remove_process_info(pid);
-	}
+  while ((pid = waitpid(-1, NULL, WNOHANG))) {
+    if (pid == -1) {
+      if (errno == EINTR)
+        continue;
+      else
+        break;
+    }
+    if (number_of_children)
+      number_of_children--;
+    remove_process_info(pid);
+  }
 }
 
-int
-process_daemonize(void)
-{
-	int pid;
+int process_daemonize(void) {
+  int pid;
 #ifndef USE_DAEMON
-	int i;
+  int i;
 
-	switch(fork())
-	{
-		/* fork error */
-		case -1:
-			perror("fork()");
-			exit(1);
+  switch (fork()) {
+  /* fork error */
+  case -1:
+    perror("fork()");
+    exit(1);
 
-		/* child process */
-		case 0:
-		/* obtain a new process group */
-			if( (pid = setsid()) < 0)
-			{
-				perror("setsid()");
-				exit(1);
-			}
+  /* child process */
+  case 0:
+    /* obtain a new process group */
+    if ((pid = setsid()) < 0) {
+      perror("setsid()");
+      exit(1);
+    }
 
-			/* close all descriptors */
-			for (i=getdtablesize();i>=0;--i) close(i);		
+    /* close all descriptors */
+    for (i = getdtablesize(); i >= 0; --i)
+      close(i);
 
-			i = open("/dev/null",O_RDWR); /* open stdin */
-			dup(i); /* stdout */
-			dup(i); /* stderr */
+    i = open("/dev/null", O_RDWR); /* open stdin */
+    dup(i);                        /* stdout */
+    dup(i);                        /* stderr */
 
-			umask(027);
-			chdir("/");
+    umask(027);
+    chdir("/");
 
-			break;
-		/* parent process */
-		default:
-			exit(0);
-	}
+    break;
+  /* parent process */
+  default:
+    exit(0);
+  }
 #else
-	if( daemon(0, 0) < 0 )
-		perror("daemon()");
-	pid = getpid();
+  if (daemon(0, 0) < 0)
+    perror("daemon()");
+  pid = getpid();
 #endif
-	return pid;
+  return pid;
 }
 
-int
-process_check_if_running(const std::string& fname)
-{
-	char buffer[64]{};
-	int pidfile;
-	pid_t pid;
+int process_check_if_running(const std::string &fname) {
+  char buffer[64]{};
+  int pidfile;
+  pid_t pid;
 
-	if(fname.empty())
-		return -1;
+  if (fname.empty())
+    return -1;
 
-	if( (pidfile = open(fname.c_str(), O_RDONLY)) < 0)
-		return 0;
+  if ((pidfile = open(fname.c_str(), O_RDONLY)) < 0)
+    return 0;
 
-	if(read(pidfile, buffer, 63) > 0)
-	{
-		if( (pid = atol(buffer)) > 0)
-		{
-			if(!kill(pid, 0))
-			{
-				close(pidfile);
-				return -2;
-			}
-		}
-	}
+  if (read(pidfile, buffer, 63) > 0) {
+    if ((pid = atol(buffer)) > 0) {
+      if (!kill(pid, 0)) {
+        close(pidfile);
+        return -2;
+      }
+    }
+  }
 
-	close(pidfile);
+  close(pidfile);
 
-	return 0;
+  return 0;
 }
 
-void
-process_reap_children(void)
-{
-	struct child *child;
-	int i;
+void process_reap_children(void) {
+  struct child *child;
+  int i;
 
-	for (i = 0; i < runtime_vars.max_connections; i++)
-	{
-		child = children+i;
-		if (child->pid)
-			kill(child->pid, SIGKILL);
-	}
+  for (i = 0; i < runtime_vars.max_connections; i++) {
+    child = children + i;
+    if (child->pid)
+      kill(child->pid, SIGKILL);
+  }
 }

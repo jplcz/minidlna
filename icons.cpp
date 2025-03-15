@@ -2,8 +2,9 @@
  *
  * This file is part of MiniDLNA.
  *
- * Penguin images are the creation of Larry Ewing (lewing@isc.tamu.edu) using The GIMP.
- * NETGEAR images Copyright (c) 2008- NETGEAR, Inc. All Rights Reserved.
+ * Penguin images are the creation of Larry Ewing (lewing@isc.tamu.edu) using
+ * The GIMP. NETGEAR images Copyright (c) 2008- NETGEAR, Inc. All Rights
+ * Reserved.
  *
  * MiniDLNA is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -17,6 +18,8 @@
  * You should have received a copy of the GNU General Public License
  * along with MiniDLNA. If not, see <http://www.gnu.org/licenses/>.
  */
+
+// clang-format off
 
 #ifdef NETGEAR
 /* NG_Icon_48x48.png */

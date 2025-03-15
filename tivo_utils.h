@@ -27,20 +27,18 @@
 #include <sqlite3.h>
 
 struct sqlite3PrngType {
-  unsigned char isInit;          /* True if initialized */
-  unsigned char i, j;            /* State variables */
-  unsigned char s[256];          /* State variables */
+  unsigned char isInit; /* True if initialized */
+  unsigned char i, j;   /* State variables */
+  unsigned char s[256]; /* State variables */
 };
 extern struct sqlite3PrngType sqlite3Prng;
 
-char *
-decodeString(char *string, int inplace);
+char *decodeString(char *string, int inplace);
 
-void
-TiVoRandomSeedFunc(sqlite3_context *context, int argc, sqlite3_value **argv);
+void TiVoRandomSeedFunc(sqlite3_context *context, int argc,
+                        sqlite3_value **argv);
 
-int
-is_tivo_file(const char *path);
+int is_tivo_file(const char *path);
 
 #else
 #define decodeString(X, Y) ({})

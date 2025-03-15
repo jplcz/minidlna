@@ -17,20 +17,21 @@
  */
 
 struct magic_container_s {
-	const char *name;
-	const char *objectid_match;
-	const char **objectid;
-	const char *objectid_sql;
-	const char *parentid_sql;
-	const char *refid_sql;
-	const char *child_count;
-	const char *where;
-	const char *orderby;
-	int max_count;
-	int required_flags;
+  const char *name;
+  const char *objectid_match;
+  const char **objectid;
+  const char *objectid_sql;
+  const char *parentid_sql;
+  const char *refid_sql;
+  const char *child_count;
+  const char *where;
+  const char *orderby;
+  int max_count;
+  int required_flags;
 };
 
 extern struct magic_container_s magic_containers[];
 
-struct magic_container_s *in_magic_container(const char *id, int flags, const char **real_id);
+struct magic_container_s *in_magic_container(const char *id, int flags,
+                                             const char **real_id);
 struct magic_container_s *check_magic_container(const char *id, int flags);

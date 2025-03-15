@@ -26,111 +26,91 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
-#include "upnpreplyparse.h"
 #include "minixml.h"
+#include "upnpreplyparse.h"
 
-static void
-NameValueParserStartElt(void * d, const char * name, int l)
-{
-    struct NameValueParserData * data = (struct NameValueParserData *)d;
-    if(l>63)
-        l = 63;
-    memcpy(data->curelt, name, l);
-    data->curelt[l] = '\0';
+static void NameValueParserStartElt(void *d, const char *name, int l) {
+  struct NameValueParserData *data = (struct NameValueParserData *)d;
+  if (l > 63)
+    l = 63;
+  memcpy(data->curelt, name, l);
+  data->curelt[l] = '\0';
 
-    /* store root element */
-    if(!data->head.lh_first)
-    {
-        struct NameValue * nv;
-        nv = (struct NameValue *) malloc(sizeof(struct NameValue)+l+1);
-        strcpy(nv->name, "rootElement");
-        memcpy(nv->value, name, l);
-        nv->value[l] = '\0';
-        LIST_INSERT_HEAD(&(data->head), nv, entries);
-    }
-}
-
-static void
-NameValueParserGetData(void * d, const char * datas, int l)
-{
-    struct NameValueParserData * data = (struct NameValueParserData *)d;
-    struct NameValue * nv;
-    if(l>1975)
-        l = 1975;
-    nv = (struct NameValue *)malloc(sizeof(struct NameValue)+l+1);
-    static_assert(sizeof(nv->name) == sizeof(data->curelt));
-    memcpy(nv->name, data->curelt, sizeof(nv->name));
-    nv->name[63] = '\0';
-    memcpy(nv->value, datas, l);
+  /* store root element */
+  if (!data->head.lh_first) {
+    struct NameValue *nv;
+    nv = (struct NameValue *)malloc(sizeof(struct NameValue) + l + 1);
+    strcpy(nv->name, "rootElement");
+    memcpy(nv->value, name, l);
     nv->value[l] = '\0';
     LIST_INSERT_HEAD(&(data->head), nv, entries);
+  }
 }
 
-void
-ParseNameValue(const char * buffer, int bufsize,
-                    struct NameValueParserData * data, uint32_t flags)
-{
-    struct xmlparser parser;
-    LIST_INIT(&(data->head));
-    /* init xmlparser object */
-    parser.xmlstart = buffer;
-    parser.xmlsize = bufsize;
-    parser.data = data;
-    parser.starteltfunc = NameValueParserStartElt;
-    parser.endeltfunc = 0;
-    parser.datafunc = NameValueParserGetData;
-    parser.attfunc = 0;
-    parser.flags = flags;
-    parsexml(&parser);
+static void NameValueParserGetData(void *d, const char *datas, int l) {
+  struct NameValueParserData *data = (struct NameValueParserData *)d;
+  struct NameValue *nv;
+  if (l > 1975)
+    l = 1975;
+  nv = (struct NameValue *)malloc(sizeof(struct NameValue) + l + 1);
+  static_assert(sizeof(nv->name) == sizeof(data->curelt));
+  memcpy(nv->name, data->curelt, sizeof(nv->name));
+  nv->name[63] = '\0';
+  memcpy(nv->value, datas, l);
+  nv->value[l] = '\0';
+  LIST_INSERT_HEAD(&(data->head), nv, entries);
 }
 
-void
-ClearNameValueList(struct NameValueParserData * pdata)
-{
-    struct NameValue * nv;
-    while((nv = pdata->head.lh_first) != NULL)
-    {
-        LIST_REMOVE(nv, entries);
-        free(nv);
-    }
+void ParseNameValue(const char *buffer, int bufsize,
+                    struct NameValueParserData *data, uint32_t flags) {
+  struct xmlparser parser;
+  LIST_INIT(&(data->head));
+  /* init xmlparser object */
+  parser.xmlstart = buffer;
+  parser.xmlsize = bufsize;
+  parser.data = data;
+  parser.starteltfunc = NameValueParserStartElt;
+  parser.endeltfunc = 0;
+  parser.datafunc = NameValueParserGetData;
+  parser.attfunc = 0;
+  parser.flags = flags;
+  parsexml(&parser);
 }
 
-char * 
-GetValueFromNameValueList(struct NameValueParserData * pdata,
-                          const char * Name)
-{
-    struct NameValue * nv;
-    char * p = NULL;
-    for(nv = pdata->head.lh_first;
-        (nv != NULL) && (p == NULL);
-        nv = nv->entries.le_next)
-    {
-        if(strcmp(nv->name, Name) == 0)
-            p = nv->value;
-    }
-    return p;
+void ClearNameValueList(struct NameValueParserData *pdata) {
+  struct NameValue *nv;
+  while ((nv = pdata->head.lh_first) != NULL) {
+    LIST_REMOVE(nv, entries);
+    free(nv);
+  }
 }
 
-/* debug all-in-one function 
+char *GetValueFromNameValueList(struct NameValueParserData *pdata,
+                                const char *Name) {
+  struct NameValue *nv;
+  char *p = NULL;
+  for (nv = pdata->head.lh_first; (nv != NULL) && (p == NULL);
+       nv = nv->entries.le_next) {
+    if (strcmp(nv->name, Name) == 0)
+      p = nv->value;
+  }
+  return p;
+}
+
+/* debug all-in-one function
  * do parsing then display to stdout */
 #ifdef DEBUG
-void
-DisplayNameValueList(char * buffer, int bufsize)
-{
-    struct NameValueParserData pdata;
-    struct NameValue * nv;
-    ParseNameValue(buffer, bufsize, &pdata, XML_STORE_EMPTY_FL);
-    for(nv = pdata.head.lh_first;
-        nv != NULL;
-        nv = nv->entries.le_next)
-    {
-        printf("%s = %s\n", nv->name, nv->value);
-    }
-    ClearNameValueList(&pdata);
+void DisplayNameValueList(char *buffer, int bufsize) {
+  struct NameValueParserData pdata;
+  struct NameValue *nv;
+  ParseNameValue(buffer, bufsize, &pdata, XML_STORE_EMPTY_FL);
+  for (nv = pdata.head.lh_first; nv != NULL; nv = nv->entries.le_next) {
+    printf("%s = %s\n", nv->name, nv->value);
+  }
+  ClearNameValueList(&pdata);
 }
 #endif
-

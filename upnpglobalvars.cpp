@@ -46,10 +46,10 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#include <sys/types.h>
+#include <limits.h>
 #include <netinet/in.h>
 #include <sys/param.h>
-#include <limits.h>
+#include <sys/types.h>
 
 #include "config.h"
 #include "upnpglobalvars.h"
@@ -76,15 +76,15 @@ struct lan_addr_s lan_addr[MAX_LAN_ADDR];
 int sssdp = -1;
 
 /* Path of the Unix socket used to communicate with MiniSSDPd */
-const char * minissdpdsocketpath = "/var/run/minissdpd.sock";
+const char *minissdpdsocketpath = "/var/run/minissdpd.sock";
 
 /* UPnP-A/V [DLNA] */
 sqlite3 *db;
 char friendly_name[FRIENDLYNAME_MAX_LEN];
 char db_path[1024] = {'\0'};
 char log_path[1024] = {'\0'};
-struct media_dir_s * media_dirs = NULL;
-struct album_art_name_s * album_art_names = NULL;
+struct media_dir_s *media_dirs = NULL;
+struct album_art_name_s *album_art_names = NULL;
 volatile short int quitting = 0;
 std::atomic<uint32_t> updateID{0};
 const char *force_sort_criteria = NULL;

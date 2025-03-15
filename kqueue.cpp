@@ -26,13 +26,13 @@
  * SUCH DAMAGE.
  */
 
-#include <sys/types.h>
-#include <sys/event.h>
 #include <assert.h>
 #include <errno.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/event.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include "event.h"
@@ -51,183 +51,170 @@ static struct kevent *change_list;
 static struct kevent *event_list;
 static u_int nchanges;
 
-#define	MAXCHANGES	128
-#define	MAXEVENTS	128
+#define MAXCHANGES 128
+#define MAXEVENTS 128
 
 struct event_module event_module = {
-	.add =		kqueue_add,
-	.del =		kqueue_del,
-	.process =	kqueue_process,
-	.init =		kqueue_init,
-	.fini =		kqueue_fini,
+    .add = kqueue_add,
+    .del = kqueue_del,
+    .process = kqueue_process,
+    .init = kqueue_init,
+    .fini = kqueue_fini,
 };
 
-static int
-kqueue_init(void)
-{
+static int kqueue_init(void) {
 
-	kq = kqueue();
-	if (kq == -1)
-		return (errno);
+  kq = kqueue();
+  if (kq == -1)
+    return (errno);
 
-	change_list = calloc(MAXCHANGES, sizeof(struct kevent));
-	event_list = calloc(MAXEVENTS, sizeof(struct kevent));
-	if (change_list == NULL || event_list == NULL)
-		return (ENOMEM);
+  change_list = calloc(MAXCHANGES, sizeof(struct kevent));
+  event_list = calloc(MAXEVENTS, sizeof(struct kevent));
+  if (change_list == NULL || event_list == NULL)
+    return (ENOMEM);
 
-	nchanges = 0;
+  nchanges = 0;
 
-	return (0);
+  return (0);
 }
 
-static void
-kqueue_fini()
-{
+static void kqueue_fini() {
 
-	(void )close(kq);
-	kq = -1;
+  (void)close(kq);
+  kq = -1;
 
-	free(change_list);
-	free(event_list);
-	change_list = NULL;
-	event_list = NULL;
-	nchanges = 0;
+  free(change_list);
+  free(event_list);
+  change_list = NULL;
+  event_list = NULL;
+  nchanges = 0;
 }
 
-static int
-kqueue_add(struct event *ev)
-{
-	u_int fflags;
-	u_short flags;
+static int kqueue_add(struct event *ev) {
+  u_int fflags;
+  u_short flags;
 
-	if (ev->rdwr == EVFILT_VNODE) {
-		flags = EV_ADD | EV_ENABLE | EV_CLEAR;
-		fflags = NOTE_DELETE | NOTE_WRITE | NOTE_EXTEND;
-	} else {
-		flags = EV_ADD | EV_ENABLE;
-		fflags = 0;
-	}
+  if (ev->rdwr == EVFILT_VNODE) {
+    flags = EV_ADD | EV_ENABLE | EV_CLEAR;
+    fflags = NOTE_DELETE | NOTE_WRITE | NOTE_EXTEND;
+  } else {
+    flags = EV_ADD | EV_ENABLE;
+    fflags = 0;
+  }
 
-	DPRINTF(E_DEBUG, L_GENERAL, "kqueue_add %d\n", ev->fd);
-	return (kqueue_set(ev, ev->rdwr, flags, fflags));
+  DPRINTF(E_DEBUG, L_GENERAL, "kqueue_add %d\n", ev->fd);
+  return (kqueue_set(ev, ev->rdwr, flags, fflags));
 }
 
-static int
-kqueue_del(struct event *ev, int flags)
-{
+static int kqueue_del(struct event *ev, int flags) {
 
-        /*
-	 * If the event is still not passed to a kernel,
-	 * we will not pass it.
-	 */
-	assert(ev->fd >= 0);
-	if (ev->index < nchanges &&
-	    change_list[ev->index].udata == ev) {
-		if (ev->index < --nchanges) {
-			struct event *ev0;
+  /*
+   * If the event is still not passed to a kernel,
+   * we will not pass it.
+   */
+  assert(ev->fd >= 0);
+  if (ev->index < nchanges && change_list[ev->index].udata == ev) {
+    if (ev->index < --nchanges) {
+      struct event *ev0;
 
-			ev0 = (struct event *)change_list[nchanges].udata;
-			change_list[ev->index] = change_list[nchanges];
-			ev0->index = ev->index;
-		}
-		return (0);
-	}
+      ev0 = (struct event *)change_list[nchanges].udata;
+      change_list[ev->index] = change_list[nchanges];
+      ev0->index = ev->index;
+    }
+    return (0);
+  }
 
-	/*
-	 * when the file descriptor is closed the kqueue automatically deletes
-	 * its filters so we do not need to delete explicitly the event
-	 * before the closing the file descriptor.
-	 */
-	if (flags & EV_FLAG_CLOSING)
-		return (0);
+  /*
+   * when the file descriptor is closed the kqueue automatically deletes
+   * its filters so we do not need to delete explicitly the event
+   * before the closing the file descriptor.
+   */
+  if (flags & EV_FLAG_CLOSING)
+    return (0);
 
-	DPRINTF(E_DEBUG, L_GENERAL, "kqueue_del %d\n", ev->fd);
-	return (kqueue_set(ev, ev->rdwr, EV_DELETE, 0));
+  DPRINTF(E_DEBUG, L_GENERAL, "kqueue_del %d\n", ev->fd);
+  return (kqueue_set(ev, ev->rdwr, EV_DELETE, 0));
 }
 
-static int
-kqueue_set(struct event *ev, short filter, u_short flags, u_int fflags)
-{
-	struct kevent *kev;
-	struct timespec ts;
+static int kqueue_set(struct event *ev, short filter, u_short flags,
+                      u_int fflags) {
+  struct kevent *kev;
+  struct timespec ts;
 
-	if (nchanges >= MAXCHANGES) {
-		DPRINTF(E_INFO, L_GENERAL, "kqueue change list is filled up\n");
+  if (nchanges >= MAXCHANGES) {
+    DPRINTF(E_INFO, L_GENERAL, "kqueue change list is filled up\n");
 
-		ts.tv_sec = 0;
-		ts.tv_nsec = 0;
+    ts.tv_sec = 0;
+    ts.tv_nsec = 0;
 
-		if (kevent(kq, change_list, (int) nchanges, NULL, 0, &ts) == -1) {
-			DPRINTF(E_ERROR, L_GENERAL,"kevent() failed: %s\n", strerror(errno));
-			return (errno);
-		}
-		nchanges = 0;
-	}
+    if (kevent(kq, change_list, (int)nchanges, NULL, 0, &ts) == -1) {
+      DPRINTF(E_ERROR, L_GENERAL, "kevent() failed: %s\n", strerror(errno));
+      return (errno);
+    }
+    nchanges = 0;
+  }
 
-	kev = &change_list[nchanges];
-	kev->ident = ev->fd;
-	kev->filter = filter;
-	kev->flags = flags;
-	kev->udata = ev;
-	kev->fflags = fflags;
-	kev->data = 0;
+  kev = &change_list[nchanges];
+  kev->ident = ev->fd;
+  kev->filter = filter;
+  kev->flags = flags;
+  kev->udata = ev;
+  kev->fflags = fflags;
+  kev->data = 0;
 
-	ev->index = nchanges++;
+  ev->index = nchanges++;
 
-	return (0);
+  return (0);
 }
 
-static int
-kqueue_process(struct timeval *tv)
-{
-	struct event *ev;
-	int events, n, i;
-	struct timespec ts;
+static int kqueue_process(struct timeval *tv) {
+  struct event *ev;
+  int events, n, i;
+  struct timespec ts;
 
-	n = (int) nchanges;
-	nchanges = 0;
+  n = (int)nchanges;
+  nchanges = 0;
 
-	TIMEVAL_TO_TIMESPEC(tv, &ts);
+  TIMEVAL_TO_TIMESPEC(tv, &ts);
 
-	DPRINTF(E_DEBUG, L_GENERAL, "kevent timer: %lu.%06lu, changes: %d\n",
-	    ts.tv_sec, ts.tv_nsec, n);
+  DPRINTF(E_DEBUG, L_GENERAL, "kevent timer: %lu.%06lu, changes: %d\n",
+          ts.tv_sec, ts.tv_nsec, n);
 
-	events = kevent(kq, change_list, n, event_list, MAXEVENTS, &ts);
+  events = kevent(kq, change_list, n, event_list, MAXEVENTS, &ts);
 
-	if (events == -1) {
-		if (errno == EINTR)
-			return (errno);
-		DPRINTF(E_FATAL, L_GENERAL, "kevent(): %s. EXITING\n", strerror(errno));
-	}
+  if (events == -1) {
+    if (errno == EINTR)
+      return (errno);
+    DPRINTF(E_FATAL, L_GENERAL, "kevent(): %s. EXITING\n", strerror(errno));
+  }
 
-	DPRINTF(E_DEBUG, L_GENERAL, "kevent events: %d\n", events);
+  DPRINTF(E_DEBUG, L_GENERAL, "kevent events: %d\n", events);
 
-	for (i = 0; i < events; i++) {
-		if (event_list[i].flags & EV_ERROR) {
-			DPRINTF(E_ERROR, L_GENERAL,
-			    "kevent() error %d on %d filter:%d flags:0x%x\n",
-			    (int)event_list[i].data, (int)event_list[i].ident,
-			    event_list[i].filter, event_list[i].flags);
-			continue;
-		}
+  for (i = 0; i < events; i++) {
+    if (event_list[i].flags & EV_ERROR) {
+      DPRINTF(E_ERROR, L_GENERAL,
+              "kevent() error %d on %d filter:%d flags:0x%x\n",
+              (int)event_list[i].data, (int)event_list[i].ident,
+              event_list[i].filter, event_list[i].flags);
+      continue;
+    }
 
-		ev = (struct event *)event_list[i].udata;
+    ev = (struct event *)event_list[i].udata;
 
-		switch (event_list[i].filter) {
-		case EVFILT_READ:
-		case EVFILT_WRITE:
-			ev->process(ev);
-			break;
-		case EVFILT_VNODE:
-			ev->process_vnode(ev, event_list[i].fflags);
-			break;
-		default:
-			DPRINTF(E_ERROR, L_GENERAL,
-			    "unexpected kevent() filter %d",
-			    event_list[i].filter);
-			continue;
-		}
-	}
+    switch (event_list[i].filter) {
+    case EVFILT_READ:
+    case EVFILT_WRITE:
+      ev->process(ev);
+      break;
+    case EVFILT_VNODE:
+      ev->process_vnode(ev, event_list[i].fflags);
+      break;
+    default:
+      DPRINTF(E_ERROR, L_GENERAL, "unexpected kevent() filter %d",
+              event_list[i].filter);
+      continue;
+    }
+  }
 
-	return (0);
+  return (0);
 }

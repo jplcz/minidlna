@@ -32,7 +32,6 @@
 #define NSEC_PER_MSEC 1000000L
 #endif
 
-int
-get_uuid_string(char *buf);
+int get_uuid_string(char *buf);
 
 #endif

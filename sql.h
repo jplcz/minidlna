@@ -24,8 +24,8 @@
 #ifndef __SQL_H__
 #define __SQL_H__
 
-#include <stdint.h>
 #include <sqlite3.h>
+#include <stdint.h>
 
 #ifndef HAVE_SQLITE3_MALLOC
 #define sqlite3_malloc(size) sqlite3_mprintf("%*s", size, "")
@@ -35,10 +35,11 @@
 #endif
 
 int sql_exec(sqlite3 *db, const char *fmt, ...);
-int sql_get_table(sqlite3 *db, const char *zSql, char ***pazResult, int *pnRow, int *pnColumn);
+int sql_get_table(sqlite3 *db, const char *zSql, char ***pazResult, int *pnRow,
+                  int *pnColumn);
 int sql_get_int_field(sqlite3 *db, const char *fmt, ...);
 int64_t sql_get_int64_field(sqlite3 *db, const char *fmt, ...);
-char * sql_get_text_field(sqlite3 *db, const char *fmt, ...);
+char *sql_get_text_field(sqlite3 *db, const char *fmt, ...);
 int db_upgrade(sqlite3 *db);
 
 #endif

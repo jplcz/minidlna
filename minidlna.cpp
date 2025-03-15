@@ -76,27 +76,28 @@
 #include <libintl.h>
 #endif
 
+#include "avahi.h"
 #include "event.h"
-#include "upnpglobalvars.h"
-#include "sql.h"
-#include "upnphttp.h"
-#include "upnpdescgen.h"
-#include "minidlnapath.h"
 #include "getifaddr.h"
-#include "upnpsoap.h"
-#include "options.h"
-#include "utils.h"
-#include "minissdp.h"
-#include "minidlnatypes.h"
-#include "process.h"
-#include "upnpevents.h"
-#include "scanner.h"
-#include "monitor.h"
 #include "libav.h"
 #include "log.h"
+#include "minidlna.h"
+#include "minidlnapath.h"
+#include "minidlnatypes.h"
+#include "minissdp.h"
+#include "monitor.h"
+#include "options.h"
+#include "process.h"
+#include "scanner.h"
+#include "sql.h"
 #include "tivo_beacon.h"
 #include "tivo_utils.h"
-#include "avahi.h"
+#include "upnpdescgen.h"
+#include "upnpevents.h"
+#include "upnpglobalvars.h"
+#include "upnphttp.h"
+#include "upnpsoap.h"
+#include "utils.h"
 
 #include <spdlog/spdlog.h>
 
@@ -1102,8 +1103,7 @@ start_monitor()
 
 /* === main === */
 /* process HTTP or SSDP requests */
-int
-real_main(int argc, char **argv)
+int service_main(int argc, char **argv)
 {
 	int ret, i;
 	int shttpl = -1;
@@ -1378,13 +1378,4 @@ shutdown:
 	freeoptions();
 
 	exit(EXIT_SUCCESS);
-}
-
-int main(int argc, char ** argv) {
-	try {
-		return real_main(argc, argv);
-	} catch(std::exception& ex) {
-		fprintf(stderr, "Terminated because of: %s\n", ex.what());
-		exit(EXIT_FAILURE);
-	}
 }

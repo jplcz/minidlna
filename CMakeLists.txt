@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.25)
-project(minidlna LANGUAGES C CXX)
+project(
+  minidlna
+  LANGUAGES C CXX
+  VERSION 2.0)
 
 include(CheckSymbolExists)
 include(CheckSourceCompiles)
@@ -7,31 +10,40 @@ include(CheckCXXCompilerFlag)
 include(GNUInstallDirs)
 include(cmake/get_cpm.cmake)
 
-CPMAddPackage(
-    NAME spdlog-gh
-    GITHUB_REPOSITORY gabime/spdlog
-    GIT_TAG v1.15.1
-    OPTIONS
-    "SPDLOG_INSTALL OFF"
-    "SPDLOG_BUILD_PIC ON"
-    "BUILD_SHARED_LIBS OFF")
-
-CPMAddPackage(
-    NAME cxxopts-gh
-    GITHUB_REPOSITORY jarro2783/cxxopts
-    GIT_TAG v3.2.0
-    OPTIONS
-    "BUILD_SHARED_LIBS OFF")
-
+# Always enable -fPIC
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+# Enable hardening
 add_compile_options(-fstack-protector-all)
 add_definitions(-D_FORTIFY_SOURCE=2)
 add_link_options(-Wl,-z,relro)
+
+cpmaddpackage(
+  NAME
+  spdlog-gh
+  GITHUB_REPOSITORY
+  gabime/spdlog
+  GIT_TAG
+  v1.15.1
+  OPTIONS
+  "SPDLOG_INSTALL OFF"
+  "SPDLOG_BUILD_PIC ON"
+  "BUILD_SHARED_LIBS OFF")
+
+cpmaddpackage(
+  NAME
+  cxxopts-gh
+  GITHUB_REPOSITORY
+  jarro2783/cxxopts
+  GIT_TAG
+  v3.2.0
+  OPTIONS
+  "BUILD_SHARED_LIBS OFF")
 
 find_package(Threads REQUIRED)
 find_package(PkgConfig)
 find_package(Gettext)
 find_package(Intl)
+find_package(Qt6 COMPONENTS Widgets DBus Gui)
 
 set(OS_URL
     "https://github.com/jplcz/minidlna"
@@ -59,6 +71,11 @@ set(DEFAULT_DB_PATH
 set(OS_NAME
     ""
     CACHE STRING "")
+set(QT_SERVICE_NAME
+    "MiniDLNA-ng"
+    CACHE STRING
+          "Name of Qt specific service name to retain configuration data")
+set(QT_PROJECT_DOMAIN "com.jpelczar.minidlna-ng")
 
 if(OS_VERSION STREQUAL "")
   execute_process(
@@ -257,62 +274,76 @@ pkg_check_modules(flac REQUIRED IMPORTED_TARGET flac)
 pkg_check_modules(vorbisfile IMPORTED_TARGET vorbisfile)
 pkg_check_modules(avahi-client IMPORTED_TARGET avahi-client)
 
-add_executable(minidlnad)
+add_library(minidlna_impl STATIC)
 
 if(vorbisfile_FOUND)
   set(HAVE_VORBISFILE ON)
-  target_link_libraries(minidlnad PRIVATE PkgConfig::vorbisfile)
+  target_link_libraries(minidlna_impl PUBLIC PkgConfig::vorbisfile)
 endif()
 
 if(avahi-client_FOUND)
   set(HAVE_AVAHI ON)
-  target_link_libraries(minidlnad PRIVATE PkgConfig::avahi-client)
+  target_link_libraries(minidlna_impl PUBLIC PkgConfig::avahi-client)
 endif()
 
 #
 # Detect logger backend
 #
 
-set(LOG_BACKEND "" CACHE STRING "Select logger backend (systemd, syslog, stdio or android)")
+set(LOG_BACKEND
+    ""
+    CACHE
+      STRING
+      "Select
+      logger
+      backend
+      (systemd, syslog, stdio or android)
+      ")
 
 pkg_check_modules(libsystemd IMPORTED_TARGET libsystemd)
 check_symbol_exists(openlog "syslog.h" HAVE_OPENLOG)
 
-if (LOG_BACKEND STREQUAL "")
-    if (ANDROID)
-      set(LOG_BACKEND "android")
-    elseif (libsystemd_FOUND)
-      set(LOG_BACKEND "systemd")
-    elseif (HAVE_OPENLOG)
-      set(LOG_BACKEND "syslog")
-    else()
-      set(LOG_BACKEND "stdio")
-    endif()
+if(LOG_BACKEND STREQUAL "")
+  if(ANDROID)
+    set(LOG_BACKEND "android")
+  elseif(libsystemd_FOUND)
+    set(LOG_BACKEND "systemd")
+  elseif(HAVE_OPENLOG)
+    set(LOG_BACKEND "syslog")
+  else()
+    set(LOG_BACKEND "stdio")
+  endif()
 endif()
 
-if (LOG_BACKEND MATCHES "android")
+if(LOG_BACKEND MATCHES "android")
   set(CONFIG_LOG_ANDROID ON)
-  target_link_libraries(minidlnad PRIVATE log)
-elseif (LOG_BACKEND MATCHES "systemd")
+  target_link_libraries(minidlna_impl PUBLIC log)
+elseif(LOG_BACKEND MATCHES "systemd")
   set(CONFIG_LOG_SYSTEMD ON)
-  target_link_libraries(minidlnad PRIVATE PkgConfig::libsystemd)
-elseif (LOG_BACKEND MATCHES "syslog")
+  target_link_libraries(minidlna_impl PUBLIC PkgConfig::libsystemd)
+elseif(LOG_BACKEND MATCHES "syslog
+      ")
   set(CONFIG_LOG_SYSLOG ON)
 endif()
 
-if (Intl_FOUND)
+if(Intl_FOUND)
   set(ENABLE_NLS ON)
-  target_link_libraries(minidlnad PRIVATE Intl::Intl)
+  target_link_libraries(minidlna_impl PUBLIC Intl::Intl)
 endif()
 
-if (GETTEXT_FOUND)
+if(GETTEXT_FOUND)
   add_subdirectory(po)
+endif()
+
+if(Qt6_FOUND)
+  set(MINIDLNA_QT ON)
+  target_link_libraries(minidlna_impl PUBLIC Qt6::Core)
 endif()
 
 configure_file(config.h.in config.h)
 
 target_sources(
-  minidlnad
+  minidlna_impl
   PRIVATE minidlna.cpp
           upnphttp.cpp
           upnpdescgen.cpp
@@ -344,42 +375,49 @@ target_sources(
           tagutils/tagutils.cpp)
 
 if(HAVE_SYS_INOTIFY_H)
-  target_sources(minidlnad PRIVATE monitor_inotify.cpp)
+  target_sources(minidlna_impl PRIVATE monitor_inotify.cpp)
 endif()
 
 if(HAVE_KQUEUE)
-  target_sources(minidlnad PRIVATE kqueue.cpp monitor_kqueue.cpp)
+  target_sources(minidlna_impl PRIVATE kqueue.cpp monitor_kqueue.cpp)
 else()
-  target_sources(minidlnad PRIVATE select.cpp)
+  target_sources(minidlna_impl PRIVATE select.cpp)
 endif()
 
-target_include_directories(minidlnad PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
-target_include_directories(minidlnad PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(minidlna_impl PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+target_include_directories(minidlna_impl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-target_link_libraries(minidlnad PRIVATE Threads::Threads)
+target_link_libraries(minidlna_impl PUBLIC Threads::Threads)
 
-target_link_libraries(minidlnad PRIVATE PkgConfig::libavutil)
-target_link_libraries(minidlnad PRIVATE PkgConfig::libavcodec)
-target_link_libraries(minidlnad PRIVATE PkgConfig::libavformat)
-target_link_libraries(minidlnad PRIVATE PkgConfig::libjpeg)
-target_link_libraries(minidlnad PRIVATE PkgConfig::sqlite3)
-target_link_libraries(minidlnad PRIVATE PkgConfig::libexif)
-target_link_libraries(minidlnad PRIVATE PkgConfig::id3tag)
-target_link_libraries(minidlnad PRIVATE PkgConfig::ogg)
-target_link_libraries(minidlnad PRIVATE PkgConfig::vorbis)
-target_link_libraries(minidlnad PRIVATE PkgConfig::flac)
+target_link_libraries(minidlna_impl PUBLIC PkgConfig::libavutil)
+target_link_libraries(minidlna_impl PUBLIC PkgConfig::libavcodec)
+target_link_libraries(minidlna_impl PUBLIC PkgConfig::libavformat)
+target_link_libraries(minidlna_impl PUBLIC PkgConfig::libjpeg)
+target_link_libraries(minidlna_impl PUBLIC PkgConfig::sqlite3)
+target_link_libraries(minidlna_impl PUBLIC PkgConfig::libexif)
+target_link_libraries(minidlna_impl PUBLIC PkgConfig::id3tag)
+target_link_libraries(minidlna_impl PUBLIC PkgConfig::ogg)
+target_link_libraries(minidlna_impl PUBLIC PkgConfig::vorbis)
+target_link_libraries(minidlna_impl PUBLIC PkgConfig::flac)
 
-target_link_libraries(minidlnad PRIVATE spdlog::spdlog)
-target_link_libraries(minidlnad PRIVATE cxxopts::cxxopts)
+target_link_libraries(minidlna_impl PUBLIC spdlog::spdlog)
+target_link_libraries(minidlna_impl PUBLIC cxxopts::cxxopts)
 
-target_compile_features(minidlnad PRIVATE cxx_std_20)
-target_compile_options(minidlnad PRIVATE -Wall -Wextra -Werror)
-target_compile_options(minidlnad PRIVATE -fstack-protector-strong)
-target_compile_definitions(minidlnad PRIVATE _LARGEFILE_SOURCE
-                                             _FILE_OFFSET_BITS=64)
+target_compile_features(minidlna_impl PUBLIC cxx_std_20)
+target_compile_options(minidlna_impl PUBLIC -Wall -Wextra -Werror)
+target_compile_options(minidlna_impl PUBLIC -fstack-protector-strong)
+target_compile_definitions(minidlna_impl PUBLIC _LARGEFILE_SOURCE
+                                                _FILE_OFFSET_BITS=64)
 
 check_cxx_compiler_flag(-Wno-error=clobbered HAVE_WNO_ERROR_CLOBBERED)
 
-if (HAVE_WNO_ERROR_CLOBBERED)
-  target_compile_options(minidlnad PRIVATE -Wno-error=clobbered)
+if(HAVE_WNO_ERROR_CLOBBERED)
+  target_compile_options(minidlna_impl PUBLIC -Wno-error=clobbered)
 endif()
+
+if(Qt6_FOUND)
+  add_subdirectory(qt-gui)
+endif()
+
+add_executable(minidlnad service_main.cpp)
+target_link_libraries(minidlnad PRIVATE minidlna_impl)

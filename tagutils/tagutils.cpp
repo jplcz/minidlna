@@ -24,16 +24,16 @@
 #include "config.h"
 #include <ctype.h>
 #include <errno.h>
-#include <id3tag.h>
-#include <stdlib.h>
-#include <stddef.h>
-#include <string.h>
 #include <fcntl.h>
-#include <unistd.h>
-#include <time.h>
-#include <sys/time.h>
-#include <netinet/in.h>
+#include <id3tag.h>
 #include <libgen.h>
+#include <netinet/in.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/time.h>
+#include <time.h>
+#include <unistd.h>
 
 #ifdef HAVE_VORBISFILE
 #include <ogg/ogg.h>
@@ -44,203 +44,303 @@
 #ifdef HAVE_ICONV
 #include <iconv.h>
 #endif
-#include <sqlite3.h>
-#include "tagutils.h"
+#include "../log.h"
 #include "../metadata.h"
 #include "../utils.h"
-#include "../log.h"
+#include "tagutils.h"
+#include <sqlite3.h>
 
 #include <vector>
 
 struct id3header {
-	unsigned char id[3];
-	unsigned char version[2];
-	unsigned char flags;
-	unsigned char size[4];
+  unsigned char id[3];
+  unsigned char version[2];
+  unsigned char flags;
+  unsigned char size[4];
 } __attribute((packed));
 
 const char *winamp_genre[] = {
-	/*00*/ "Blues",             "Classic Rock",     "Country",           "Dance",
-	       "Disco",             "Funk",             "Grunge",            "Hip-Hop",
-	/*08*/ "Jazz",              "Metal",            "New Age",           "Oldies",
-	       "Other",             "Pop",              "R&B",               "Rap",
-	/*10*/ "Reggae",            "Rock",             "Techno",            "Industrial",
-	       "Alternative",       "Ska",              "Death Metal",       "Pranks",
-	/*18*/ "Soundtrack",        "Euro-Techno",	"Ambient",           "Trip-Hop",
-	       "Vocal",             "Jazz+Funk",        "Fusion",            "Trance",
-	/*20*/ "Classical",         "Instrumental",     "Acid",              "House",
-	       "Game",              "Sound Clip",       "Gospel",            "Noise",
-	/*28*/ "AlternRock",        "Bass",             "Soul",              "Punk",
-	       "Space",             "Meditative",       "Instrumental Pop",  "Instrumental Rock",
-	/*30*/ "Ethnic",            "Gothic",		"Darkwave",          "Techno-Industrial",
-	       "Electronic",        "Pop-Folk",         "Eurodance",         "Dream",
-	/*38*/ "Southern Rock",     "Comedy",           "Cult",              "Gangsta",
-	       "Top 40",            "Christian Rap",    "Pop/Funk",          "Jungle",
-	/*40*/ "Native American",   "Cabaret",          "New Wave",          "Psychedelic",
-	       "Rave",              "Showtunes",        "Trailer",           "Lo-Fi",
-	/*48*/ "Tribal",            "Acid Punk",        "Acid Jazz",         "Polka",
-	       "Retro",             "Musical",          "Rock & Roll",       "Hard Rock",
-	/*50*/ "Folk",              "Folk/Rock",        "National folk",     "Swing",
-	       "Fast-fusion",       "Bebob",            "Latin",             "Revival",
-	/*58*/ "Celtic",            "Bluegrass",        "Avantgarde",        "Gothic Rock",
-	       "Progressive Rock",  "Psychedelic Rock", "Symphonic Rock",    "Slow Rock",
-	/*60*/ "Big Band",          "Chorus",           "Easy Listening",    "Acoustic",
-	       "Humour",            "Speech",           "Chanson",           "Opera",
-	/*68*/ "Chamber Music",     "Sonata",           "Symphony",          "Booty Bass",
-	       "Primus",            "Porn Groove",      "Satire",            "Slow Jam",
-	/*70*/ "Club",              "Tango",            "Samba",             "Folklore",
-	       "Ballad",            "Powder Ballad",    "Rhythmic Soul",     "Freestyle",
-	/*78*/ "Duet",              "Punk Rock",        "Drum Solo",         "A Capella",
-	       "Euro-House",        "Dance Hall",       "Goa",               "Drum & Bass",
-	/*80*/ "Club House",        "Hardcore",         "Terror",            "Indie",
-	       "BritPop",           "NegerPunk",        "Polsk Punk",        "Beat",
-	/*88*/ "Christian Gangsta", "Heavy Metal",      "Black Metal",       "Crossover",
-	       "Contemporary C",    "Christian Rock",   "Merengue",          "Salsa",
-	/*90*/ "Thrash Metal",      "Anime",            "JPop",              "SynthPop",
-	       "Unknown"
-};
+    /*00*/ "Blues",
+    "Classic Rock",
+    "Country",
+    "Dance",
+    "Disco",
+    "Funk",
+    "Grunge",
+    "Hip-Hop",
+    /*08*/ "Jazz",
+    "Metal",
+    "New Age",
+    "Oldies",
+    "Other",
+    "Pop",
+    "R&B",
+    "Rap",
+    /*10*/ "Reggae",
+    "Rock",
+    "Techno",
+    "Industrial",
+    "Alternative",
+    "Ska",
+    "Death Metal",
+    "Pranks",
+    /*18*/ "Soundtrack",
+    "Euro-Techno",
+    "Ambient",
+    "Trip-Hop",
+    "Vocal",
+    "Jazz+Funk",
+    "Fusion",
+    "Trance",
+    /*20*/ "Classical",
+    "Instrumental",
+    "Acid",
+    "House",
+    "Game",
+    "Sound Clip",
+    "Gospel",
+    "Noise",
+    /*28*/ "AlternRock",
+    "Bass",
+    "Soul",
+    "Punk",
+    "Space",
+    "Meditative",
+    "Instrumental Pop",
+    "Instrumental Rock",
+    /*30*/ "Ethnic",
+    "Gothic",
+    "Darkwave",
+    "Techno-Industrial",
+    "Electronic",
+    "Pop-Folk",
+    "Eurodance",
+    "Dream",
+    /*38*/ "Southern Rock",
+    "Comedy",
+    "Cult",
+    "Gangsta",
+    "Top 40",
+    "Christian Rap",
+    "Pop/Funk",
+    "Jungle",
+    /*40*/ "Native American",
+    "Cabaret",
+    "New Wave",
+    "Psychedelic",
+    "Rave",
+    "Showtunes",
+    "Trailer",
+    "Lo-Fi",
+    /*48*/ "Tribal",
+    "Acid Punk",
+    "Acid Jazz",
+    "Polka",
+    "Retro",
+    "Musical",
+    "Rock & Roll",
+    "Hard Rock",
+    /*50*/ "Folk",
+    "Folk/Rock",
+    "National folk",
+    "Swing",
+    "Fast-fusion",
+    "Bebob",
+    "Latin",
+    "Revival",
+    /*58*/ "Celtic",
+    "Bluegrass",
+    "Avantgarde",
+    "Gothic Rock",
+    "Progressive Rock",
+    "Psychedelic Rock",
+    "Symphonic Rock",
+    "Slow Rock",
+    /*60*/ "Big Band",
+    "Chorus",
+    "Easy Listening",
+    "Acoustic",
+    "Humour",
+    "Speech",
+    "Chanson",
+    "Opera",
+    /*68*/ "Chamber Music",
+    "Sonata",
+    "Symphony",
+    "Booty Bass",
+    "Primus",
+    "Porn Groove",
+    "Satire",
+    "Slow Jam",
+    /*70*/ "Club",
+    "Tango",
+    "Samba",
+    "Folklore",
+    "Ballad",
+    "Powder Ballad",
+    "Rhythmic Soul",
+    "Freestyle",
+    /*78*/ "Duet",
+    "Punk Rock",
+    "Drum Solo",
+    "A Capella",
+    "Euro-House",
+    "Dance Hall",
+    "Goa",
+    "Drum & Bass",
+    /*80*/ "Club House",
+    "Hardcore",
+    "Terror",
+    "Indie",
+    "BritPop",
+    "NegerPunk",
+    "Polsk Punk",
+    "Beat",
+    /*88*/ "Christian Gangsta",
+    "Heavy Metal",
+    "Black Metal",
+    "Crossover",
+    "Contemporary C",
+    "Christian Rock",
+    "Merengue",
+    "Salsa",
+    /*90*/ "Thrash Metal",
+    "Anime",
+    "JPop",
+    "SynthPop",
+    "Unknown"};
 
-#define WINAMP_GENRE_UNKNOWN ((sizeof(winamp_genre) / sizeof(winamp_genre[0])) - 1)
-
+#define WINAMP_GENRE_UNKNOWN                                                   \
+  ((sizeof(winamp_genre) / sizeof(winamp_genre[0])) - 1)
 
 /*
  * Prototype
  */
-#include "tagutils-mp3.h"
 #include "tagutils-aac.h"
+#include "tagutils-mp3.h"
 #ifdef HAVE_VORBISFILE
 #include "tagutils-ogg.h"
 #endif
-#include "tagutils-flc.h"
 #include "tagutils-asf.h"
-#include "tagutils-wav.h"
-#include "tagutils-pcm.h"
-#include "tagutils-dsf.h"
 #include "tagutils-dff.h"
+#include "tagutils-dsf.h"
+#include "tagutils-flc.h"
+#include "tagutils-pcm.h"
+#include "tagutils-wav.h"
 
 static int _get_tags(const char *file, struct song_metadata *psong);
 static int _get_fileinfo(const char *file, struct song_metadata *psong);
-
 
 /*
  * Typedefs
  */
 
 typedef struct {
-	const char* type;
-	int (*get_tags)(const char* file, struct song_metadata* psong);
-	int (*get_fileinfo)(const char* file, struct song_metadata* psong);
+  const char *type;
+  int (*get_tags)(const char *file, struct song_metadata *psong);
+  int (*get_fileinfo)(const char *file, struct song_metadata *psong);
 } taghandler;
 
-static taghandler taghandlers[] = {
-	{ "aac", _get_aactags,	_get_aacfileinfo },
-	{ "mp3", _get_mp3tags,	_get_mp3fileinfo },
-	{ "flc", _get_flctags,	_get_flcfileinfo },
+static taghandler taghandlers[] = {{"aac", _get_aactags, _get_aacfileinfo},
+                                   {"mp3", _get_mp3tags, _get_mp3fileinfo},
+                                   {"flc", _get_flctags, _get_flcfileinfo},
 #ifdef HAVE_VORBISFILE
-	{ "ogg", NULL,		_get_oggfileinfo },
+                                   {"ogg", NULL, _get_oggfileinfo},
 #endif
-	{ "asf", NULL,		_get_asffileinfo },
-	{ "wav", _get_wavtags,	_get_wavfileinfo },
-	{ "pcm", NULL,		_get_pcmfileinfo },
-	{ "dsf", _get_dsftags,	_get_dsffileinfo },
-	{ "dff", NULL,		_get_dfffileinfo },
-	{ NULL,  NULL, NULL }
-};
-
-
+                                   {"asf", NULL, _get_asffileinfo},
+                                   {"wav", _get_wavtags, _get_wavfileinfo},
+                                   {"pcm", NULL, _get_pcmfileinfo},
+                                   {"dsf", _get_dsftags, _get_dsffileinfo},
+                                   {"dff", NULL, _get_dfffileinfo},
+                                   {NULL, NULL, NULL}};
 
 //*********************************************************************************
+#include "tagutils-aac.c"
 #include "tagutils-misc.c"
 #include "tagutils-mp3.c"
-#include "tagutils-aac.c"
 #ifdef HAVE_VORBISFILE
 #include "tagutils-ogg.c"
 #endif
-#include "tagutils-flc.c"
 #include "tagutils-asf.c"
-#include "tagutils-wav.c"
+#include "tagutils-dff.c"
+#include "tagutils-dsf.c"
+#include "tagutils-flc.c"
 #include "tagutils-pcm.c"
 #include "tagutils-plist.c"
-#include "tagutils-dsf.c"
-#include "tagutils-dff.c"
+#include "tagutils-wav.c"
 
 //*********************************************************************************
 // freetags()
-#define MAYBEFREE(a) { if((a)) free((a)); };
-void
-freetags(struct song_metadata *psong)
-{
-	int role;
+#define MAYBEFREE(a)                                                           \
+  {                                                                            \
+    if ((a))                                                                   \
+      free((a));                                                               \
+  };
+void freetags(struct song_metadata *psong) {
+  int role;
 
-	MAYBEFREE(psong->path);
-	MAYBEFREE(psong->image);
-	MAYBEFREE(psong->title);
-	MAYBEFREE(psong->album);
-	MAYBEFREE(psong->genre);
-	MAYBEFREE(psong->comment);
-	for(role = ROLE_START; role <= ROLE_LAST; role++)
-	{
-		MAYBEFREE(psong->contributor[role]);
-		MAYBEFREE(psong->contributor_sort[role]);
-	}
-	MAYBEFREE(psong->grouping);
-	MAYBEFREE(psong->mime);
-	MAYBEFREE(psong->dlna_pn);
-	MAYBEFREE(psong->tagversion);
-	MAYBEFREE(psong->musicbrainz_albumid);
-	MAYBEFREE(psong->musicbrainz_trackid);
-	MAYBEFREE(psong->musicbrainz_artistid);
-	MAYBEFREE(psong->musicbrainz_albumartistid);
+  MAYBEFREE(psong->path);
+  MAYBEFREE(psong->image);
+  MAYBEFREE(psong->title);
+  MAYBEFREE(psong->album);
+  MAYBEFREE(psong->genre);
+  MAYBEFREE(psong->comment);
+  for (role = ROLE_START; role <= ROLE_LAST; role++) {
+    MAYBEFREE(psong->contributor[role]);
+    MAYBEFREE(psong->contributor_sort[role]);
+  }
+  MAYBEFREE(psong->grouping);
+  MAYBEFREE(psong->mime);
+  MAYBEFREE(psong->dlna_pn);
+  MAYBEFREE(psong->tagversion);
+  MAYBEFREE(psong->musicbrainz_albumid);
+  MAYBEFREE(psong->musicbrainz_trackid);
+  MAYBEFREE(psong->musicbrainz_artistid);
+  MAYBEFREE(psong->musicbrainz_albumartistid);
 }
 
 // _get_fileinfo
-static int
-_get_fileinfo(const char *file, struct song_metadata *psong)
-{
-	taghandler *hdl;
+static int _get_fileinfo(const char *file, struct song_metadata *psong) {
+  taghandler *hdl;
 
-	// dispatch to appropriate tag handler
-	for(hdl = taghandlers; hdl->type; ++hdl)
-		if(!strcmp(hdl->type, psong->type))
-			break;
+  // dispatch to appropriate tag handler
+  for (hdl = taghandlers; hdl->type; ++hdl)
+    if (!strcmp(hdl->type, psong->type))
+      break;
 
-	if(hdl->get_fileinfo)
-		return hdl->get_fileinfo(file, psong);
+  if (hdl->get_fileinfo)
+    return hdl->get_fileinfo(file, psong);
 
-	return 0;
+  return 0;
 }
 
+static void _make_composite_tags(struct song_metadata *psong) {
+  int len;
 
-static void
-_make_composite_tags(struct song_metadata *psong)
-{
-	int len;
+  len = 1;
 
-	len = 1;
+  if (!psong->contributor[ROLE_ARTIST] &&
+      (psong->contributor[ROLE_BAND] || psong->contributor[ROLE_CONDUCTOR])) {
+    if (psong->contributor[ROLE_BAND])
+      len += strlen(psong->contributor[ROLE_BAND]);
+    if (psong->contributor[ROLE_CONDUCTOR])
+      len += strlen(psong->contributor[ROLE_CONDUCTOR]);
 
-	if(!psong->contributor[ROLE_ARTIST] &&
-	   (psong->contributor[ROLE_BAND] || psong->contributor[ROLE_CONDUCTOR]))
-	{
-		if(psong->contributor[ROLE_BAND])
-			len += strlen(psong->contributor[ROLE_BAND]);
-		if(psong->contributor[ROLE_CONDUCTOR])
-			len += strlen(psong->contributor[ROLE_CONDUCTOR]);
+    len += 3;
 
-		len += 3;
+    psong->contributor[ROLE_ARTIST] = (char *)calloc(len, 1);
+    if (psong->contributor[ROLE_ARTIST]) {
+      if (psong->contributor[ROLE_BAND])
+        strcat(psong->contributor[ROLE_ARTIST], psong->contributor[ROLE_BAND]);
 
-		psong->contributor[ROLE_ARTIST] = (char*)calloc(len, 1);
-		if(psong->contributor[ROLE_ARTIST])
-		{
-			if(psong->contributor[ROLE_BAND])
-				strcat(psong->contributor[ROLE_ARTIST], psong->contributor[ROLE_BAND]);
+      if (psong->contributor[ROLE_BAND] && psong->contributor[ROLE_CONDUCTOR])
+        strcat(psong->contributor[ROLE_ARTIST], " - ");
 
-			if(psong->contributor[ROLE_BAND] && psong->contributor[ROLE_CONDUCTOR])
-				strcat(psong->contributor[ROLE_ARTIST], " - ");
-
-			if(psong->contributor[ROLE_CONDUCTOR])
-				strcat(psong->contributor[ROLE_ARTIST], psong->contributor[ROLE_CONDUCTOR]);
-		}
-	}
+      if (psong->contributor[ROLE_CONDUCTOR])
+        strcat(psong->contributor[ROLE_ARTIST],
+               psong->contributor[ROLE_CONDUCTOR]);
+    }
+  }
 
 #if 0 // already taken care of by scanner.c
 	if(!psong->title)
@@ -253,57 +353,50 @@ _make_composite_tags(struct song_metadata *psong)
 #endif
 }
 
-
 /*****************************************************************************/
 // _get_tags
-static int
-_get_tags(const char *file, struct song_metadata *psong)
-{
-	taghandler *hdl;
+static int _get_tags(const char *file, struct song_metadata *psong) {
+  taghandler *hdl;
 
-	// dispatch
-	for(hdl = taghandlers ; hdl->type ; ++hdl)
-		if(!strcasecmp(hdl->type, psong->type))
-			break;
+  // dispatch
+  for (hdl = taghandlers; hdl->type; ++hdl)
+    if (!strcasecmp(hdl->type, psong->type))
+      break;
 
-	if(hdl->get_tags)
-	{
-		return hdl->get_tags(file, psong);
-	}
+  if (hdl->get_tags) {
+    return hdl->get_tags(file, psong);
+  }
 
-	return 0;
+  return 0;
 }
 
 /*****************************************************************************/
 // readtags
-int
-readtags(const char *path, struct song_metadata *psong, struct stat *stat, const char *lang, const char *type)
-{
-	char *fname;
+int readtags(const char *path, struct song_metadata *psong, struct stat *stat,
+             const char *lang, const char *type) {
+  char *fname;
 
-	if(lang_index == -1)
-		lang_index = _lang2cp(lang);
+  if (lang_index == -1)
+    lang_index = _lang2cp(lang);
 
-	memset((void*)psong, 0, sizeof(struct song_metadata));
-	psong->path = strdup(path);
-	psong->type = type;
+  memset((void *)psong, 0, sizeof(struct song_metadata));
+  psong->path = strdup(path);
+  psong->type = type;
 
-	fname = strrchr(psong->path, '/');
-	psong->basename = fname ? fname + 1 : psong->path;
+  fname = strrchr(psong->path, '/');
+  psong->basename = fname ? fname + 1 : psong->path;
 
-	if(stat)
-	{
-		if(!psong->time_modified)
-			psong->time_modified = stat->st_mtime;
-		psong->file_size = stat->st_size;
-	}
+  if (stat) {
+    if (!psong->time_modified)
+      psong->time_modified = stat->st_mtime;
+    psong->file_size = stat->st_size;
+  }
 
-	// get tag
-	if( _get_tags(path, psong) == 0 )
-	{
-		_make_composite_tags(psong);
-	}
-	
-	// get fileinfo
-	return _get_fileinfo(path, psong);
+  // get tag
+  if (_get_tags(path, psong) == 0) {
+    _make_composite_tags(psong);
+  }
+
+  // get fileinfo
+  return _get_fileinfo(path, psong);
 }

@@ -27,11 +27,11 @@
 #ifndef _TAG_H_
 #define _TAG_H_
 
-#include <stdio.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <stdint.h>
 #include <libgen.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #define ROLE_NOUSE 0
 #define ROLE_START 1
@@ -45,79 +45,81 @@
 #define N_ROLE 7
 
 struct song_metadata {
-	int file_size;
-	char *dirpath;
-	char *path;
-	char *basename;                         // basename is part of path
-	const char *type;
-	int time_modified;
+  int file_size;
+  char *dirpath;
+  char *path;
+  char *basename; // basename is part of path
+  const char *type;
+  int time_modified;
 
-	uint8_t *image;                         // coverart
-	int image_size;
+  uint8_t *image; // coverart
+  int image_size;
 
-	char *title;                            // TIT2
-	char *album;                            // TALB
-	char *genre;                            // TCON
-	char *comment;                          // COMM
+  char *title;   // TIT2
+  char *album;   // TALB
+  char *genre;   // TCON
+  char *comment; // COMM
 
-	char *contributor[N_ROLE];              // TPE1  (artist)
-						// TCOM  (composer)
-						// TPE3  (conductor)
-						// TPE2  (orchestra)
-	char *contributor_sort[N_ROLE];
+  char *contributor[N_ROLE]; // TPE1  (artist)
+                             // TCOM  (composer)
+                             // TPE3  (conductor)
+                             // TPE2  (orchestra)
+  char *contributor_sort[N_ROLE];
 
+  char *grouping;   // TIT1
+  int year;         // TDRC
+  int track;        // TRCK
+  int total_tracks; // TRCK
+  int disc;         // TPOS
+  int total_discs;  // TPOS
+  int bpm;          // TBPM
+  char compilation; // YTCP
 
-	char *grouping;                         // TIT1
-	int year;                               // TDRC
-	int track;                              // TRCK
-	int total_tracks;                       // TRCK
-	int disc;                               // TPOS
-	int total_discs;                        // TPOS
-	int bpm;                                // TBPM
-	char compilation;                       // YTCP
+  int bitrate;
+  int max_bitrate;
+  int samplerate;
+  int samplesize;
+  int channels;
+  int song_length; // TLEN
+  int audio_size;
+  int audio_offset;
+  int vbr_scale;
+  int lossless;
+  int blockalignment;
 
-	int bitrate;
-	int max_bitrate;
-	int samplerate;
-	int samplesize;
-	int channels;
-	int song_length;                        // TLEN
-	int audio_size;
-	int audio_offset;
-	int vbr_scale;
-	int lossless;
-	int blockalignment;
+  char *mime;    // MIME type
+  char *dlna_pn; // DLNA Profile Name
 
-	char *mime;				// MIME type
-	char *dlna_pn;				// DLNA Profile Name
+  char *tagversion;
 
-	char *tagversion;
+  unsigned long album_id;
+  unsigned long track_id;
+  unsigned long genre_id;
+  unsigned long contributor_id[N_ROLE];
 
-	unsigned long album_id;
-	unsigned long track_id;
-	unsigned long genre_id;
-	unsigned long contributor_id[N_ROLE];
+  char *musicbrainz_albumid;
+  char *musicbrainz_trackid;
+  char *musicbrainz_artistid;
+  char *musicbrainz_albumartistid;
 
-	char *musicbrainz_albumid;
-	char *musicbrainz_trackid;
-	char *musicbrainz_artistid;
-	char *musicbrainz_albumartistid;
-
-	int is_plist;
-	int plist_position;
-	int plist_id;
+  int is_plist;
+  int plist_position;
+  int plist_id;
 };
 
-#define WMA     0x161
-#define WMAPRO  0x162
-#define WMALSL  0x163
+#define WMA 0x161
+#define WMAPRO 0x162
+#define WMALSL 0x163
 
 extern int scan_init(char *path);
 extern void make_composite_tags(struct song_metadata *psong);
-extern int readtags(const char *path, struct song_metadata *psong, struct stat *stat, const char *lang, const char *type);
+extern int readtags(const char *path, struct song_metadata *psong,
+                    struct stat *stat, const char *lang, const char *type);
 extern void freetags(struct song_metadata *psong);
 
-extern int start_plist(const char *path, struct song_metadata *psong, struct stat *stat, char *lang, char *type);
-extern int next_plist_track(struct song_metadata *psong, struct stat *stat, char *lang, char *type);
+extern int start_plist(const char *path, struct song_metadata *psong,
+                       struct stat *stat, char *lang, char *type);
+extern int next_plist_track(struct song_metadata *psong, struct stat *stat,
+                            char *lang, char *type);
 
 #endif

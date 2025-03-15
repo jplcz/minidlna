@@ -22,4 +22,5 @@
 
 static int _get_aactags(const char *file, struct song_metadata *psong);
 static int _get_aacfileinfo(const char *file, struct song_metadata *psong);
-static off_t _aac_lookforatom(FILE *aac_fp, const char *atom_path, unsigned int *atom_length);
+static off_t _aac_lookforatom(FILE *aac_fp, const char *atom_path,
+                              unsigned int *atom_length);

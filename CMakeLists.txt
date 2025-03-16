@@ -280,7 +280,8 @@ pkg_check_modules(flac REQUIRED IMPORTED_TARGET flac)
 pkg_check_modules(vorbisfile IMPORTED_TARGET vorbisfile)
 pkg_check_modules(avahi-client IMPORTED_TARGET avahi-client)
 
-add_library(minidlna_impl STATIC)
+add_library(minidlna_impl STATIC
+        minidlna_service.cpp)
 
 if(vorbisfile_FOUND)
   set(HAVE_VORBISFILE ON)

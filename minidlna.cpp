@@ -46,6 +46,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
+#include "minidlna_service.h"
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <errno.h>
@@ -1059,6 +1060,11 @@ int service_main(int argc, char **argv) {
     return 1;
   init_nls();
 
+  // This starts worker threads.
+  // Later main thread will just switch to ASIO,
+  // instead of select event loop
+  minidlna_service service;
+
   DPRINTF(E_WARN, L_GENERAL,
           "Starting " SERVER_NAME " version " MINIDLNA_VERSION ".\n");
   if (sqlite3_libversion_number() < 3005001) {
@@ -1246,6 +1252,8 @@ int service_main(int argc, char **argv) {
   }
 
 shutdown:
+  service.stop();
+
   /* kill the scanner */
   if (GETFLAG(SCANNING_MASK) && scanner_pid)
     kill(scanner_pid, SIGKILL);

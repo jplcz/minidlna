@@ -108,79 +108,6 @@
 #define sqlite3_threadsafe() 0
 #endif
 
-static boost::intrusive::list<upnphttp> upnphttphead;
-
-/* OpenAndConfHTTPSocket() :
- * setup the socket used to handle incoming HTTP connections. */
-static int OpenAndConfHTTPSocket(unsigned short port) {
-  int s;
-  int i = 1;
-  struct sockaddr_in listenname;
-
-  /* Initialize client type cache */
-  memset(&clients, 0, sizeof(struct client_cache_s));
-
-  s = socket(PF_INET, SOCK_STREAM, 0);
-  if (s < 0) {
-    DPRINTF(E_ERROR, L_GENERAL, "socket(http): %s\n", strerror(errno));
-    return -1;
-  }
-
-  if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &i, sizeof(i)) < 0)
-    DPRINTF(E_WARN, L_GENERAL, "setsockopt(http, SO_REUSEADDR): %s\n",
-            strerror(errno));
-
-  memset(&listenname, 0, sizeof(struct sockaddr_in));
-  listenname.sin_family = AF_INET;
-  listenname.sin_port = htons(port);
-  listenname.sin_addr.s_addr = htonl(INADDR_ANY);
-
-  if (bind(s, (struct sockaddr *)&listenname, sizeof(struct sockaddr_in)) < 0) {
-    DPRINTF(E_ERROR, L_GENERAL, "bind(http): %s\n", strerror(errno));
-    close(s);
-    return -1;
-  }
-
-  if (listen(s, 16) < 0) {
-    DPRINTF(E_ERROR, L_GENERAL, "listen(http): %s\n", strerror(errno));
-    close(s);
-    return -1;
-  }
-
-  return s;
-}
-
-/* ProcessListen() :
- * accept incoming HTTP connection. */
-static void ProcessListen(struct event *ev) {
-  int shttp;
-  socklen_t clientnamelen;
-  struct sockaddr_in clientname;
-  clientnamelen = sizeof(struct sockaddr_in);
-
-  shttp = accept(ev->fd, (struct sockaddr *)&clientname, &clientnamelen);
-  if (shttp < 0) {
-    DPRINTF(E_ERROR, L_GENERAL, "accept(http): %s\n", strerror(errno));
-  } else {
-    struct upnphttp *tmp = 0;
-    DPRINTF(E_DEBUG, L_GENERAL, "HTTP connection from %s:%d\n",
-            inet_ntoa(clientname.sin_addr), ntohs(clientname.sin_port));
-    /*if (fcntl(shttp, F_SETFL, O_NONBLOCK) < 0) {
-            DPRINTF(E_ERROR, L_GENERAL, "fcntl F_SETFL, O_NONBLOCK\n");
-    }*/
-    /* Create a new upnphttp object and add it to
-     * the active upnphttp object list */
-    tmp = New_upnphttp(shttp);
-    if (tmp) {
-      tmp->clientaddr = clientname.sin_addr;
-      upnphttphead.push_front(*tmp);
-    } else {
-      DPRINTF(E_ERROR, L_GENERAL, "New_upnphttp() failed\n");
-      close(shttp);
-    }
-  }
-}
-
 /* Handler for the SIGTERM signal (kill)
  * SIGINT is also handled */
 static void sigterm(int sig) {
@@ -1037,13 +964,12 @@ void start_monitor() {
 /* process HTTP or SSDP requests */
 int service_main(int argc, char **argv) {
   int ret, i;
-  int shttpl = -1;
   int smonitor = -1;
   struct timeval tv, timeofday, lastnotifytime = {0, 0};
   time_t lastupdatetime = 0, lastdbtime = 0;
   int last_changecnt = 0;
   pid_t scanner_pid = 0;
-  struct event ssdpev, httpev, monev;
+  struct event ssdpev, monev;
 #ifdef TIVO_SUPPORT
   uint8_t beacon_interval = 5;
   int sbeacon = -1;
@@ -1059,11 +985,6 @@ int service_main(int argc, char **argv) {
   if (ret != 0)
     return 1;
   init_nls();
-
-  // This starts worker threads.
-  // Later main thread will just switch to ASIO,
-  // instead of select event loop
-  minidlna_service service;
 
   DPRINTF(E_WARN, L_GENERAL,
           "Starting " SERVER_NAME " version " MINIDLNA_VERSION ".\n");
@@ -1115,18 +1036,6 @@ int service_main(int argc, char **argv) {
     event_module.add(&ssdpev);
   }
 
-  /* open socket for HTTP connections. */
-  shttpl = OpenAndConfHTTPSocket(runtime_vars.port);
-  if (shttpl < 0)
-    DPRINTF(E_FATAL, L_GENERAL, "Failed to open socket for HTTP. EXITING\n");
-  DPRINTF(E_WARN, L_GENERAL, "HTTP listening on port %d\n", runtime_vars.port);
-  httpev = (struct event){.fd = shttpl,
-                          .index = 0,
-                          .rdwr = EVENT_READ,
-                          .process = ProcessListen,
-                          .data = NULL};
-  event_module.add(&httpev);
-
   if (gettimeofday(&timeofday, 0) < 0)
     DPRINTF(E_FATAL, L_GENERAL, "gettimeofday(): %s\n", strerror(errno));
 
@@ -1161,6 +1070,11 @@ int service_main(int argc, char **argv) {
 
   reload_ifaces(0); /* sends SSDP notifies */
   lastnotifytime = timeofday;
+
+  // This starts worker threads.
+  // Later main thread will just switch to ASIO,
+  // instead of select event loop
+  minidlna_service service;
 
   /* main loop */
   while (!quitting) {
@@ -1230,7 +1144,8 @@ int service_main(int argc, char **argv) {
     /* increment SystemUpdateID if the content database has changed,
      * and if there is an active HTTP connection, at most once every 2 seconds
      */
-    if (!upnphttphead.empty() && (timeofday.tv_sec >= (lastupdatetime + 2))) {
+    if (/* !upnphttphead.empty()  && */ (timeofday.tv_sec >=
+                                       (lastupdatetime + 2))) {
       if (GETFLAG(SCANNING_MASK)) {
         time_t dbtime = _get_dbtime();
         if (dbtime != lastdbtime) {
@@ -1245,10 +1160,6 @@ int service_main(int argc, char **argv) {
         lastupdatetime = timeofday.tv_sec;
       }
     }
-    /* delete finished HTTP connections */
-    upnphttphead.remove_and_dispose_if(
-        [](const auto &e) { return e.state >= 100; },
-        [](auto *e) { Delete_upnphttp(e); });
   }
 
 shutdown:
@@ -1259,11 +1170,8 @@ shutdown:
     kill(scanner_pid, SIGKILL);
 
   /* close out open sockets */
-  upnphttphead.clear_and_dispose([](auto e) { Delete_upnphttp(e); });
   if (sssdp >= 0)
     close(sssdp);
-  if (shttpl >= 0)
-    close(shttpl);
 #ifdef TIVO_SUPPORT
   if (sbeacon >= 0)
     close(sbeacon);

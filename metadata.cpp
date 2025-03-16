@@ -462,7 +462,7 @@ int64_t GetImageMetadata(const char *path, const char *name) {
   char b[1024];
   struct stat file;
   int64_t ret;
-  image_s *imsrc;
+  std::shared_ptr<image_s> imsrc;
   metadata_t m;
   uint32_t free_flags = 0xFFFFFFFF;
   memset(&m, '\0', sizeof(metadata_t));
@@ -540,7 +540,6 @@ int64_t GetImageMetadata(const char *path, const char *name) {
       if (imsrc) {
         if ((imsrc->width <= 160) && (imsrc->height <= 160))
           thumb = 1;
-        image_free(imsrc);
       }
     } else
       thumb = 1;

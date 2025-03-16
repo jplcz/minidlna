@@ -281,7 +281,9 @@ pkg_check_modules(vorbisfile IMPORTED_TARGET vorbisfile)
 pkg_check_modules(avahi-client IMPORTED_TARGET avahi-client)
 
 add_library(minidlna_impl STATIC
-        minidlna_service.cpp)
+        minidlna_service.cpp
+        upnp_http_service.cpp
+        upnp_http_service.h)
 
 if(vorbisfile_FOUND)
   set(HAVE_VORBISFILE ON)

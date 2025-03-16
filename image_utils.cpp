@@ -354,12 +354,12 @@ int image_get_jpeg_date_xmp(const char *path, char **date) {
   return ret;
 }
 
-image_s *image_new(int32_t width, int32_t height) {
+std::shared_ptr<image_s> image_new(int32_t width, int32_t height) {
   image_s *vimage;
 
   if ((vimage = (image_s *)malloc(sizeof(image_s))) == NULL) {
     DPRINTF(E_WARN, L_METADATA, "malloc failed\n");
-    return NULL;
+    return {};
   }
   vimage->width = width;
   vimage->height = height;
@@ -367,14 +367,15 @@ image_s *image_new(int32_t width, int32_t height) {
   if ((vimage->buf = (pix *)malloc(width * height * sizeof(pix))) == NULL) {
     DPRINTF(E_WARN, L_METADATA, "malloc failed\n");
     free(vimage);
-    return NULL;
+    return {};
   }
-  return (vimage);
+  return std::shared_ptr<image_s>(vimage, image_free);
 }
 
-image_s *image_new_from_jpeg(const char *path, int is_file, const uint8_t *buf,
-                             int size, int scale, int rotate) {
-  image_s *vimage;
+std::shared_ptr<image_s> image_new_from_jpeg(const char *path, int is_file,
+                                             const uint8_t *buf, int size,
+                                             int scale, int rotate) {
+  std::shared_ptr<image_s> vimage;
   FILE *file = NULL;
   struct jpeg_decompress_struct cinfo;
   unsigned char *line[16], *ptr;
@@ -422,7 +423,6 @@ image_s *image_new_from_jpeg(const char *path, int is_file, const uint8_t *buf,
       fclose(file);
     if (vimage) {
       free(vimage->buf);
-      free(vimage);
     }
     return NULL;
   }
@@ -432,7 +432,6 @@ image_s *image_new_from_jpeg(const char *path, int is_file, const uint8_t *buf,
             "ERROR image_from_jpeg : (image_from_jpeg.c) JPEG uses line "
             "buffers > 16. Cannot load.\n");
     jpeg_destroy_decompress(&cinfo);
-    image_free(vimage);
     if (is_file)
       fclose(file);
     return NULL;
@@ -445,7 +444,6 @@ image_s *image_new_from_jpeg(const char *path, int is_file, const uint8_t *buf,
         NULL) {
       DPRINTF(E_WARN, L_METADATA, "malloc failed\n");
       jpeg_destroy_decompress(&cinfo);
-      image_free(vimage);
       if (is_file)
         fclose(file);
       return NULL;
@@ -477,7 +475,6 @@ image_s *image_new_from_jpeg(const char *path, int is_file, const uint8_t *buf,
         for (t = 0; t < i; t++)
           free(line[t]);
         jpeg_destroy_decompress(&cinfo);
-        image_free(vimage);
         if (is_file)
           fclose(file);
         return NULL;
@@ -702,21 +699,22 @@ void image_downsize(image_s *pdest, image_s *psrc, int32_t width,
   }
 }
 
-image_s *image_resize(image_s *src_image, int32_t width, int32_t height) {
-  image_s *dst_image;
+std::shared_ptr<image_s> image_resize(image_s *src_image, int32_t width,
+                                      int32_t height) {
+  std::shared_ptr<image_s> dst_image;
 
   dst_image = image_new(width, height);
   if (!dst_image)
-    return NULL;
+    return {};
   if ((src_image->width < width) || (src_image->height < height))
-    image_upsize(dst_image, src_image, width, height);
+    image_upsize(dst_image.get(), src_image, width, height);
   else
-    image_downsize(dst_image, src_image, width, height);
+    image_downsize(dst_image.get(), src_image, width, height);
 
   return dst_image;
 }
 
-unsigned char *image_save_to_jpeg_buf(image_s *pimage, int *size) {
+std::shared_ptr<jpeg_buffer> image_save_to_jpeg_buf(image_s *pimage) {
   struct jpeg_compress_struct cinfo;
   struct jpeg_error_mgr jerr;
   JSAMPROW row_pointer[1];
@@ -724,6 +722,7 @@ unsigned char *image_save_to_jpeg_buf(image_s *pimage, int *size) {
   char *data;
   int i, x;
   struct my_dst_mgr dst;
+  auto result = std::make_shared<jpeg_buffer>();
 
   cinfo.err = jpeg_std_error(&jerr);
   jpeg_create_compress(&cinfo);
@@ -754,29 +753,24 @@ unsigned char *image_save_to_jpeg_buf(image_s *pimage, int *size) {
     jpeg_write_scanlines(&cinfo, row_pointer, 1);
   }
   jpeg_finish_compress(&cinfo);
-  *size = dst.used;
   free(data);
   jpeg_destroy_compress(&cinfo);
-
-  return dst.buf;
+  result->data = (unsigned char *)dst.buf;
+  result->size = dst.used;
+  return result;
 }
 
 char *image_save_to_jpeg_file(image_s *pimage, char *path) {
-  int nwritten, size = 0;
-  unsigned char *buf;
+  int nwritten;
   FILE *dst_file;
 
-  buf = image_save_to_jpeg_buf(pimage, &size);
-  if (!buf)
-    return NULL;
+  auto buf = image_save_to_jpeg_buf(pimage);
   dst_file = fopen(path, "w");
   if (!dst_file) {
-    free(buf);
     return NULL;
   }
-  nwritten = fwrite(buf, 1, size, dst_file);
+  nwritten = fwrite(buf->data, 1, buf->size, dst_file);
   fclose(dst_file);
-  free(buf);
 
-  return (nwritten == size) ? path : NULL;
+  return (nwritten == (ssize_t)buf->size) ? path : NULL;
 }

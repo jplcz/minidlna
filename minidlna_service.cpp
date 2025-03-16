@@ -5,6 +5,7 @@
 
 #include "minidlna_service.h"
 #include "log.h"
+#include "upnpglobalvars.h"
 #include <spdlog/fmt/ostr.h>
 
 minidlna_service::minidlna_service(size_t num_threads)
@@ -12,6 +13,8 @@ minidlna_service::minidlna_service(size_t num_threads)
   for (size_t i = 0; i < num_threads; i++) {
     m_thread_pool.emplace_back(&minidlna_service::run, this);
   }
+  m_http_server = std::make_shared<upnp_http_service>(get_io_context());
+  m_http_server->start(runtime_vars.port);
 }
 
 minidlna_service::~minidlna_service() {

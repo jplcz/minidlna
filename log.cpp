@@ -47,7 +47,7 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 
 static std::shared_ptr<spdlog::sinks::basic_file_sink_mt> log_fp_sink;
-static const int _default_log_level = E_WARN;
+static const int _default_log_level = E_DEBUG;
 int log_level[L_MAX];
 
 const char *facility_name[] = {"general", "artwork",  "database", "inotify",

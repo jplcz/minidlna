@@ -80,6 +80,7 @@
 #include "upnphttp.h"
 #include "upnpsoap.h"
 #include "utils.h"
+#include <boost/asio/write.hpp>
 #include <libexif/exif-loader.h>
 
 #define MAX_BUFFER_SIZE 2147483647
@@ -94,51 +95,108 @@
 
 #include "icons.cpp"
 
+#include <future>
+
 enum event_type { E_INVALID, E_SUBSCRIBE, E_RENEW };
 
-static void SendResp_icon(struct upnphttp *, char *url);
-static void SendResp_albumArt(struct upnphttp *, char *url);
-static void SendResp_caption(struct upnphttp *, char *url);
-static void SendResp_resizedimg(struct upnphttp *, char *url);
-static void SendResp_thumbnail(struct upnphttp *, char *url);
-static void SendResp_dlnafile(struct upnphttp *, char *url);
-static void Process_upnphttp(struct event *ev);
+static void SendResp_icon(struct upnphttp *, const char *url);
+static void SendResp_albumArt(struct upnphttp *, const char *url);
+static void SendResp_caption(struct upnphttp *, const char *url);
+static void SendResp_resizedimg(struct upnphttp *, const char *url);
+static void SendResp_thumbnail(struct upnphttp *, const char *url);
+static void SendResp_dlnafile(struct upnphttp *, const char *url);
+static void ProcessHttpQuery_upnphttp(struct upnphttp *h);
+static void ParseHttpHeaders(struct upnphttp *h);
+static void ProcessHTTPPOST_upnphttp(struct upnphttp *h);
 
-struct upnphttp *New_upnphttp(int s) {
-  struct upnphttp *ret;
-  if (s < 0)
-    return NULL;
-  ret = new (std::nothrow) upnphttp();
-  if (ret == NULL)
-    return NULL;
-  ret->ev.fd = s;
-  ret->ev.rdwr = EVENT_READ;
-  ret->ev.process = Process_upnphttp;
-  ret->ev.data = ret;
-  event_module.add(&ret->ev);
-  return ret;
+upnphttp::upnphttp(boost::asio::ip::tcp::socket s) : sock(std::move(s)) {}
+
+upnphttp::~upnphttp() {
+  free(req_buf);
+  free(res_buf);
+  if (sending_fd >= 0)
+    close(sending_fd);
 }
 
-void CloseSocket_upnphttp(struct upnphttp *h) {
-
-  event_module.del(&h->ev, EV_FLAG_CLOSING);
-  if (close(h->ev.fd) < 0) {
-    DPRINTF(E_ERROR, L_HTTP, "CloseSocket_upnphttp: close(%d): %s\n", h->ev.fd,
-            strerror(errno));
-  }
-  h->ev.fd = -1;
-  h->state = 100;
+void upnphttp::issue_read() {
+  sock.async_read_some(
+      boost::asio::buffer(rx_buffer),
+      [self = shared_from_this()](const boost::system::error_code &ec,
+                                  const size_t size) {
+        if (ec) {
+          DPRINTX(E_ERROR, L_HTTP, "HTTP connection closed: {}", ec.what());
+        } else {
+          self->handle_rx(size);
+        }
+      });
 }
 
-void Delete_upnphttp(struct upnphttp *h) {
-  if (h) {
-    assert(!h->is_linked());
-    if (h->ev.fd >= 0)
-      CloseSocket_upnphttp(h);
-    free(h->req_buf);
-    free(h->res_buf);
-    delete h;
+void upnphttp::handle_rx(const std::size_t n) {
+  switch (state) {
+  case 0:
+    if (n == 0) {
+      DPRINTX(E_DEBUG, L_HTTP, "HTTP Connection closed unexpectedly");
+    } else {
+      int new_req_buflen;
+      const char *endheaders;
+      /* if 1st arg of realloc() is null,
+       * realloc behaves the same as malloc() */
+      new_req_buflen = n + req_buflen + 1;
+      if (new_req_buflen >= 1024 * 1024) {
+        DPRINTX(E_ERROR, L_HTTP,
+                "Receive headers too large (received {} bytes)",
+                new_req_buflen);
+        return;
+      }
+      auto new_req_buf = static_cast<char *>(realloc(req_buf, new_req_buflen));
+      if (!new_req_buf) {
+        DPRINTX(E_ERROR, L_HTTP, "Could not reallocate req_buf");
+        break;
+      }
+      req_buf = new_req_buf;
+      memcpy(req_buf + req_buflen, rx_buffer.data(), n);
+      req_buflen += n;
+      req_buf[req_buflen] = '\0';
+      /* search for the string "\r\n\r\n" */
+      endheaders = strstr(req_buf, "\r\n\r\n");
+      if (endheaders) {
+        req_contentoff = endheaders - req_buf + 4;
+        req_contentlen = req_buflen - req_contentoff;
+        ProcessHttpQuery_upnphttp(this);
+      }
+    }
+    break;
+  case 1:
+  case 2:
+    if (n == 0) {
+      DPRINTX(E_DEBUG, L_HTTP, "HTTP Connection closed unexpectedly");
+    } else {
+      rx_buffer[std::size(rx_buffer) - 1] = '\0';
+      auto new_req_buf = static_cast<char *>(realloc(req_buf, n + req_buflen));
+      if (!new_req_buf) {
+        return;
+      }
+      req_buf = new_req_buf;
+      memcpy(req_buf + req_buflen, rx_buffer.data(), n);
+      req_buflen += n;
+      if ((req_buflen - req_contentoff) >= req_contentlen) {
+        /* Need the struct to point to the realloc'd memory locations */
+        if (state == 1) {
+          ParseHttpHeaders(this);
+          ProcessHTTPPOST_upnphttp(this);
+        } else if (state == 2) {
+          ProcessHttpQuery_upnphttp(this);
+        }
+      }
+    }
+    break;
+  default:
+    DPRINTF(E_WARN, L_HTTP, "Unexpected state: %d\n", state);
   }
+}
+
+std::shared_ptr<upnphttp> New_upnphttp(boost::asio::ip::tcp::socket s) {
+  return std::make_shared<upnphttp>(std::move(s));
 }
 
 /* parse HttpHeaders of the REQUEST */
@@ -412,8 +470,7 @@ static void Send400(struct upnphttp *h) {
       " for this HTTP version.</BODY></HTML>\r\n";
   h->respflags = FLAG_HTML;
   BuildResp2_upnphttp(h, 400, "Bad Request", body400, sizeof(body400) - 1);
-  SendResp_upnphttp(h);
-  CloseSocket_upnphttp(h);
+  SendResp_upnphttp_and_finish(h);
 }
 
 /* very minimalistic 403 error message */
@@ -425,8 +482,7 @@ static void Send403(struct upnphttp *h) {
       "</BODY></HTML>\r\n";
   h->respflags = FLAG_HTML;
   BuildResp2_upnphttp(h, 403, "Forbidden", body403, sizeof(body403) - 1);
-  SendResp_upnphttp(h);
-  CloseSocket_upnphttp(h);
+  SendResp_upnphttp_and_finish(h);
 }
 
 /* very minimalistic 404 error message */
@@ -437,8 +493,7 @@ static void Send404(struct upnphttp *h) {
       " on this server.</BODY></HTML>\r\n";
   h->respflags = FLAG_HTML;
   BuildResp2_upnphttp(h, 404, "Not Found", body404, sizeof(body404) - 1);
-  SendResp_upnphttp(h);
-  CloseSocket_upnphttp(h);
+  SendResp_upnphttp_and_finish(h);
 }
 
 /* very minimalistic 406 error message */
@@ -449,8 +504,7 @@ static void Send406(struct upnphttp *h) {
       " was requested.</BODY></HTML>\r\n";
   h->respflags = FLAG_HTML;
   BuildResp2_upnphttp(h, 406, "Not Acceptable", body406, sizeof(body406) - 1);
-  SendResp_upnphttp(h);
-  CloseSocket_upnphttp(h);
+  SendResp_upnphttp_and_finish(h);
 }
 
 /* very minimalistic 416 error message */
@@ -462,8 +516,7 @@ static void Send416(struct upnphttp *h) {
   h->respflags = FLAG_HTML;
   BuildResp2_upnphttp(h, 416, "Requested Range Not Satisfiable", body416,
                       sizeof(body416) - 1);
-  SendResp_upnphttp(h);
-  CloseSocket_upnphttp(h);
+  SendResp_upnphttp_and_finish(h);
 }
 
 /* very minimalistic 500 error message */
@@ -475,8 +528,7 @@ void Send500(struct upnphttp *h) {
   h->respflags = FLAG_HTML;
   BuildResp2_upnphttp(h, 500, "Internal Server Errror", body500,
                       sizeof(body500) - 1);
-  SendResp_upnphttp(h);
-  CloseSocket_upnphttp(h);
+  SendResp_upnphttp_and_finish(h);
 }
 
 /* very minimalistic 501 error message */
@@ -487,8 +539,7 @@ void Send501(struct upnphttp *h) {
       "is not implemented by this server.</BODY></HTML>\r\n";
   h->respflags = FLAG_HTML;
   BuildResp2_upnphttp(h, 501, "Not Implemented", body501, sizeof(body501) - 1);
-  SendResp_upnphttp(h);
-  CloseSocket_upnphttp(h);
+  SendResp_upnphttp_and_finish(h);
 }
 
 /* Sends the description generated by the parameter */
@@ -502,8 +553,7 @@ static void sendXMLdesc(struct upnphttp *h, char *(f)(int *)) {
     return;
   }
   BuildResp_upnphttp(h, desc, len);
-  SendResp_upnphttp(h);
-  CloseSocket_upnphttp(h);
+  SendResp_upnphttp_and_finish(h);
   free(desc);
 }
 
@@ -578,8 +628,7 @@ static void SendResp_presentation(struct upnphttp *h) {
   strcatf(&str, "</BODY></HTML>\r\n");
 
   BuildResp_upnphttp(h, str.data, str.off);
-  SendResp_upnphttp(h);
-  CloseSocket_upnphttp(h);
+  SendResp_upnphttp_and_finish(h);
 }
 
 /* ProcessHTTPPOST_upnphttp()
@@ -597,12 +646,12 @@ static void ProcessHTTPPOST_upnphttp(struct upnphttp *h) {
       h->respflags = FLAG_HTML;
       BuildResp2_upnphttp(h, 400, "Bad Request", err400str,
                           sizeof(err400str) - 1);
-      SendResp_upnphttp(h);
-      CloseSocket_upnphttp(h);
+      SendResp_upnphttp_and_finish(h);
     }
   } else {
     /* waiting for remaining data */
     h->state = 1;
+    h->issue_read();
   }
 }
 
@@ -693,8 +742,7 @@ static void ProcessHTTPSubscribe_upnphttp(struct upnphttp *h,
       BuildResp_upnphttp(h, 0, 0);
     }
   }
-  SendResp_upnphttp(h);
-  CloseSocket_upnphttp(h);
+  SendResp_upnphttp_and_finish(h);
 }
 
 static void ProcessHTTPUnSubscribe_upnphttp(struct upnphttp *h,
@@ -710,8 +758,7 @@ static void ProcessHTTPUnSubscribe_upnphttp(struct upnphttp *h,
     else
       BuildResp_upnphttp(h, 0, 0);
   }
-  SendResp_upnphttp(h);
-  CloseSocket_upnphttp(h);
+  SendResp_upnphttp_and_finish(h);
 }
 
 /* Parse and process Http Query
@@ -759,6 +806,7 @@ static void ProcessHttpQuery_upnphttp(struct upnphttp *h) {
     }
     if (h->req_chunklen) {
       h->state = 2;
+      h->issue_read();
       return;
     }
     char *chunkstart, *chunk, *endptr, *endbuf;
@@ -906,7 +954,7 @@ static void ProcessHttpQuery_upnphttp(struct upnphttp *h) {
       SendResp_presentation(h);
 #endif
     } else {
-      DPRINTF(E_WARN, L_HTTP, "%s not found, responding ERROR 404\n", HttpUrl);
+      DPRINTX(E_WARN, L_HTTP, "'{}' not found, responding ERROR 404", HttpUrl);
       Send404(h);
     }
   } else if (strcmp("SUBSCRIBE", HttpCommand) == 0) {
@@ -918,88 +966,6 @@ static void ProcessHttpQuery_upnphttp(struct upnphttp *h) {
   } else {
     DPRINTF(E_WARN, L_HTTP, "Unsupported HTTP Command %s\n", HttpCommand);
     Send501(h);
-  }
-}
-
-static void Process_upnphttp(struct event *ev) {
-  char buf[2048];
-  struct upnphttp *h = (struct upnphttp *)ev->data;
-  int n;
-
-  switch (h->state) {
-  case 0:
-    n = recv(h->ev.fd, buf, 2048, 0);
-    if (n < 0) {
-      DPRINTF(E_ERROR, L_HTTP, "recv (state0): %s\n", strerror(errno));
-      h->state = 100;
-    } else if (n == 0) {
-      DPRINTF(E_DEBUG, L_HTTP, "HTTP Connection closed unexpectedly\n");
-      h->state = 100;
-    } else {
-      int new_req_buflen;
-      const char *endheaders;
-      /* if 1st arg of realloc() is null,
-       * realloc behaves the same as malloc() */
-      new_req_buflen = n + h->req_buflen + 1;
-      if (new_req_buflen >= 1024 * 1024) {
-        DPRINTF(E_ERROR, L_HTTP,
-                "Receive headers too large (received %d bytes)\n",
-                new_req_buflen);
-        h->state = 100;
-        break;
-      }
-      h->req_buf = (char *)realloc(h->req_buf, new_req_buflen);
-      if (!h->req_buf) {
-        DPRINTF(E_ERROR, L_HTTP, "Receive headers: %s\n", strerror(errno));
-        h->state = 100;
-        break;
-      }
-      memcpy(h->req_buf + h->req_buflen, buf, n);
-      h->req_buflen += n;
-      h->req_buf[h->req_buflen] = '\0';
-      /* search for the string "\r\n\r\n" */
-      endheaders = strstr(h->req_buf, "\r\n\r\n");
-      if (endheaders) {
-        h->req_contentoff = endheaders - h->req_buf + 4;
-        h->req_contentlen = h->req_buflen - h->req_contentoff;
-        ProcessHttpQuery_upnphttp(h);
-      }
-    }
-    break;
-  case 1:
-  case 2:
-    n = recv(h->ev.fd, buf, sizeof(buf), 0);
-    if (n < 0) {
-      DPRINTF(E_ERROR, L_HTTP, "recv (state%d): %s\n", h->state,
-              strerror(errno));
-      h->state = 100;
-    } else if (n == 0) {
-      DPRINTF(E_DEBUG, L_HTTP, "HTTP Connection closed unexpectedly\n");
-      h->state = 100;
-    } else {
-      buf[sizeof(buf) - 1] = '\0';
-      /*fwrite(buf, 1, n, stdout);*/ /* debug */
-      h->req_buf = (char *)realloc(h->req_buf, n + h->req_buflen);
-      if (!h->req_buf) {
-        DPRINTF(E_ERROR, L_HTTP, "Receive request body: %s\n", strerror(errno));
-        h->state = 100;
-        break;
-      }
-      memcpy(h->req_buf + h->req_buflen, buf, n);
-      h->req_buflen += n;
-      if ((h->req_buflen - h->req_contentoff) >= h->req_contentlen) {
-        /* Need the struct to point to the realloc'd memory locations */
-        if (h->state == 1) {
-          ParseHttpHeaders(h);
-          ProcessHTTPPOST_upnphttp(h);
-        } else if (h->state == 2) {
-          ProcessHttpQuery_upnphttp(h);
-        }
-      }
-    }
-    break;
-  default:
-    DPRINTF(E_WARN, L_HTTP, "Unexpected state: %d\n", h->state);
   }
 }
 
@@ -1070,119 +1036,83 @@ void BuildResp_upnphttp(struct upnphttp *h, const char *body, int bodylen) {
   BuildResp2_upnphttp(h, 200, "OK", body, bodylen);
 }
 
-void SendResp_upnphttp(struct upnphttp *h) {
-  int n;
-  DPRINTF(E_DEBUG, L_HTTP, "HTTP RESPONSE: %.*s\n", h->res_buflen, h->res_buf);
-  n = send(h->ev.fd, h->res_buf, h->res_buflen, 0);
-  if (n < 0) {
-    DPRINTF(E_ERROR, L_HTTP, "send(res_buf): %s\n", strerror(errno));
-  } else if (n < h->res_buflen) {
-    /* TODO : handle correctly this case */
-    DPRINTF(E_ERROR, L_HTTP, "send(res_buf): %d bytes sent (out of %d)\n", n,
-            h->res_buflen);
-  }
+void SendResp_upnphttp_and_finish(struct upnphttp *h) {
+  // Must extend lifetime
+  boost::asio::async_write(
+      h->sock, boost::asio::const_buffer(h->res_buf, h->res_buflen),
+      [self = h->shared_from_this()](const boost::system::error_code &ec,
+                                     size_t) {
+        if (ec) {
+          DPRINTX(E_ERROR, L_HTTP, "send(res_buf): {}", ec.what());
+        }
+      });
 }
 
-static int send_data(struct upnphttp *h, const char *header, size_t size,
-                     int flags) {
-  int n;
-
-  n = send(h->ev.fd, header, size, flags);
-  if (n < 0) {
-    DPRINTF(E_ERROR, L_HTTP, "send(res_buf): %s\n", strerror(errno));
-  } else if (n < h->res_buflen) {
-    /* TODO : handle correctly this case */
-    DPRINTF(E_ERROR, L_HTTP, "send(res_buf): %d bytes sent (out of %d)\n", n,
-            h->res_buflen);
-  } else {
-    return 0;
-  }
-  return 1;
+void upnphttp::send_file(int fd, off_t offset, off_t end_offset) {
+  sending_fd = fd;
+  sending_offset = offset;
+  sending_end_offset = end_offset;
+  sendfile_buffer.resize(MIN_BUFFER_SIZE);
+  while (send_next_file_chunk())
+    ;
 }
 
-static void send_file(struct upnphttp *h, int sendfd, off_t offset,
-                      off_t end_offset) {
-  off_t send_size;
-  off_t ret;
-  char *buf = NULL;
-#if HAVE_SENDFILE
-  int try_sendfile = 1;
-#endif
-
-  while (offset <= end_offset) {
-#if HAVE_SENDFILE
-    if (try_sendfile) {
-      send_size =
-          (((end_offset - offset) < MAX_BUFFER_SIZE) ? (end_offset - offset + 1)
-                                                     : MAX_BUFFER_SIZE);
-      ret = sys_sendfile(h->ev.fd, sendfd, &offset, send_size);
-      if (ret == -1) {
-        DPRINTF(E_DEBUG, L_HTTP, "sendfile error :: error no. %d [%s]\n", errno,
-                strerror(errno));
-        /* If sendfile isn't supported on the filesystem, don't bother trying to
-         * use it again. */
-        if (errno == EOVERFLOW || errno == EINVAL)
-          try_sendfile = 0;
-        else if (errno != EAGAIN)
-          break;
-      } else if (ret == 0) {
-        break; /* Premature end of file */
-      } else {
-        // DPRINTF(E_DEBUG, L_HTTP, "sent %lld bytes to %d. offset is now
-        // %lld.\n", ret, h->socket, offset);
-        continue;
-      }
-    }
-#endif
-    /* Fall back to regular I/O */
-    if (!buf)
-      buf = (char *)malloc(MIN_BUFFER_SIZE);
-    send_size =
-        (((end_offset - offset) < MIN_BUFFER_SIZE) ? (end_offset - offset + 1)
-                                                   : MIN_BUFFER_SIZE);
-    lseek(sendfd, offset, SEEK_SET);
-    ret = read(sendfd, buf, send_size);
-    if (ret == -1) {
-      DPRINTF(E_DEBUG, L_HTTP, "read error :: error no. %d [%s]\n", errno,
-              strerror(errno));
-      if (errno == EAGAIN)
-        continue;
-      else
-        break;
-    } else if (ret == 0) {
-      break; /* premature end of file */
-    }
-    ret = write(h->ev.fd, buf, ret);
-    if (ret == -1) {
-      DPRINTF(E_DEBUG, L_HTTP, "write error :: error no. %d [%s]\n", errno,
-              strerror(errno));
-      if (errno == EAGAIN)
-        continue;
-      else
-        break;
-    }
-    offset += ret;
+bool upnphttp::send_next_file_chunk() {
+  if (sending_offset >= sending_end_offset)
+    return false;
+  const off_t send_size =
+      (((sending_end_offset - sending_offset) < MIN_BUFFER_SIZE)
+           ? (sending_end_offset - sending_offset + 1)
+           : MIN_BUFFER_SIZE);
+  lseek(sending_fd, sending_offset, SEEK_SET);
+  const ssize_t ret = read(sending_fd, sendfile_buffer.data(), send_size);
+  if (ret == -1) {
+    const int saved_errno = errno;
+    DPRINTX(E_DEBUG, L_HTTP, "read error :: error no. {} [{}]", saved_errno,
+            strerror(saved_errno));
+    if (saved_errno == EAGAIN)
+      return true;
   }
-  free(buf);
+  if (ret == 0) {
+    // Finished reading ?
+    return false;
+  }
+  boost::asio::async_write(
+      sock, boost::asio::const_buffer(sendfile_buffer.data(), ret),
+      [self = shared_from_this()](const boost::system::error_code &ec,
+                                  size_t written) {
+        if (ec) {
+          DPRINTX(E_DEBUG, L_HTTP, "write error :: error {}", ec.what());
+        } else {
+          self->sending_offset += written;
+          while (self->send_next_file_chunk())
+            ;
+        }
+      });
+
+  return false;
 }
 
-static void start_dlna_header(struct string_s *str, int respcode,
-                              const char *tmode, const char *mime) {
-  char date[30];
+template <typename Container>
+static void start_dlna_header(Container &str, int respcode,
+                              const std::string_view &tmode,
+                              const std::string_view &mime) {
+  char date[128];
   time_t now;
 
   now = time(NULL);
   strftime(date, sizeof(date), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&now));
-  strcatf(str,
-          "HTTP/1.1 %d OK\r\n"
-          "Connection: close\r\n"
-          "Date: %s\r\n"
-          "Server: " MINIDLNA_SERVER_STRING "\r\n"
-          "EXT:\r\n"
-          "realTimeInfo.dlna.org: DLNA.ORG_TLAG=*\r\n"
-          "transferMode.dlna.org: %s\r\n"
-          "Content-Type: %s\r\n",
-          respcode, date, tmode, mime);
+
+  fmt::format_to(std::back_inserter(str),
+                 FMT_STRING("HTTP/1.1 {} OK\r\n"
+                            "Connection: close\r\n"
+                            "Date: {}\r\n"
+                            "Server: " MINIDLNA_SERVER_STRING "\r\n"
+                            "EXT:\r\n"
+                            "realTimeInfo.dlna.org: DLNA.ORG_TLAG=*\r\n"
+                            "transferMode.dlna.org: {}\r\n"
+                            "Content-Type: {}\r\n"),
+                 respcode, date, tmode, mime);
 }
 
 static int _open_file(const char *orig_path) {
@@ -1218,58 +1148,70 @@ static int _open_file(const char *orig_path) {
   return fd;
 }
 
-static void SendResp_icon(struct upnphttp *h, char *icon) {
-  char header[512];
-  char mime[12] = "image/";
-  char *data;
-  int size;
-  struct string_s str;
+static void SendResp_icon(struct upnphttp *h, const char *icon) {
+  std::string_view mime;
+  const char *data;
+  size_t size;
+  auto container = std::make_shared<fmt::memory_buffer>();
 
   if (strcmp(icon, "sm.png") == 0) {
     DPRINTF(E_DEBUG, L_HTTP, "Sending small PNG icon\n");
-    data = (char *)png_sm;
+    data = (const char *)png_sm;
     size = sizeof(png_sm) - 1;
-    strcpy(mime + 6, "png");
+    mime = "image/png";
   } else if (strcmp(icon, "lrg.png") == 0) {
     DPRINTF(E_DEBUG, L_HTTP, "Sending large PNG icon\n");
-    data = (char *)png_lrg;
+    data = (const char *)png_lrg;
     size = sizeof(png_lrg) - 1;
-    strcpy(mime + 6, "png");
+    mime = "image/png";
   } else if (strcmp(icon, "sm.jpg") == 0) {
     DPRINTF(E_DEBUG, L_HTTP, "Sending small JPEG icon\n");
-    data = (char *)jpeg_sm;
+    data = (const char *)jpeg_sm;
     size = sizeof(jpeg_sm) - 1;
-    strcpy(mime + 6, "jpeg");
+    mime = "image/jpeg";
   } else if (strcmp(icon, "lrg.jpg") == 0) {
     DPRINTF(E_DEBUG, L_HTTP, "Sending large JPEG icon\n");
-    data = (char *)jpeg_lrg;
+    data = (const char *)jpeg_lrg;
     size = sizeof(jpeg_lrg) - 1;
-    strcpy(mime + 6, "jpeg");
+    mime = "image/jpeg";
   } else {
     DPRINTF(E_WARN, L_HTTP, "Invalid icon request: %s\n", icon);
     Send404(h);
     return;
   }
 
-  INIT_STR(str, header);
+  start_dlna_header(*container, 200, "Interactive", mime);
+  fmt::format_to(std::back_inserter(*container),
+                 FMT_STRING("Content-Length: {}\r\n\r\n"), size);
 
-  start_dlna_header(&str, 200, "Interactive", mime);
-  strcatf(&str, "Content-Length: %d\r\n\r\n", size);
+  auto write_completion = [self = h->shared_from_this(), container](
+                              const boost::system::error_code &ec, size_t) {
+    if (ec) {
+      DPRINTX(E_ERROR, L_HTTP, "http send failure: {}", ec.what());
+    }
+  };
 
-  if (send_data(h, str.data, str.off, MSG_MORE) == 0) {
-    if (h->req_command != EHead)
-      send_data(h, data, size, 0);
+  if (h->req_command != EHead) {
+    boost::asio::async_write(
+        h->sock,
+        std::array{
+            boost::asio::const_buffer(container->data(), container->size()),
+            boost::asio::const_buffer(data, size)},
+        write_completion);
+
+  } else {
+    boost::asio::async_write(
+        h->sock,
+        boost::asio::const_buffer(container->data(), container->size()),
+        write_completion);
   }
-  CloseSocket_upnphttp(h);
 }
 
-static void SendResp_albumArt(struct upnphttp *h, char *object) {
-  char header[512];
+static void SendResp_albumArt(struct upnphttp *h, const char *object) {
   char *path;
   off_t size;
   long long id;
   int fd;
-  struct string_s str;
 
   if (h->reqflags & (FLAG_XFERSTREAMING | FLAG_RANGE)) {
     DPRINTF(
@@ -1304,29 +1246,34 @@ static void SendResp_albumArt(struct upnphttp *h, char *object) {
   size = lseek(fd, 0, SEEK_END);
   lseek(fd, 0, SEEK_SET);
 
-  INIT_STR(str, header);
+  auto header = std::make_shared<fmt::memory_buffer>();
 
-  start_dlna_header(&str, 200, "Interactive", "image/jpeg");
-  strcatf(&str,
-          "Content-Length: %jd\r\n"
-          "contentFeatures.dlna.org: DLNA.ORG_PN=JPEG_TN\r\n\r\n",
-          (intmax_t)size);
+  start_dlna_header(*header, 200, "Interactive", "image/jpeg");
+  fmt::format_to(
+      std::back_inserter(*header),
+      FMT_STRING("Content-Length: {}\r\n"
+                 "contentFeatures.dlna.org: DLNA.ORG_PN=JPEG_TN\r\n\r\n"),
+      size);
 
-  if (send_data(h, str.data, str.off, MSG_MORE) == 0) {
-    if (h->req_command != EHead)
-      send_file(h, fd, 0, size - 1);
-  }
-  close(fd);
-  CloseSocket_upnphttp(h);
+  async_write(h->sock,
+              boost::asio::const_buffer(header->data(), header->size()),
+              // Must extend data lifetime for async
+              [header, size, self = h->shared_from_this(),
+               fd](const boost::system::error_code &ec, size_t) {
+                if (ec) {
+                  DPRINTX(E_ERROR, L_HTTP, "http send failure: {}", ec.what());
+                  close(fd);
+                } else {
+                  self->send_file(fd, 0, size - 1);
+                }
+              });
 }
 
-static void SendResp_caption(struct upnphttp *h, char *object) {
-  char header[512];
+static void SendResp_caption(struct upnphttp *h, const char *object) {
   char *path;
   off_t size;
   long long id;
   int fd;
-  struct string_s str;
 
   id = strtoll(object, NULL, 10);
 
@@ -1353,26 +1300,30 @@ static void SendResp_caption(struct upnphttp *h, char *object) {
   size = lseek(fd, 0, SEEK_END);
   lseek(fd, 0, SEEK_SET);
 
-  INIT_STR(str, header);
+  auto header = std::make_shared<fmt::memory_buffer>();
 
-  start_dlna_header(&str, 200, "Interactive", "smi/caption");
-  strcatf(&str, "Content-Length: %jd\r\n\r\n", (intmax_t)size);
+  fmt::format_to(std::back_inserter(*header),
+                 FMT_STRING("Content-Length: {}\r\n\r\n"), size);
 
-  if (send_data(h, str.data, str.off, MSG_MORE) == 0) {
-    if (h->req_command != EHead)
-      send_file(h, fd, 0, size - 1);
-  }
-  close(fd);
-  CloseSocket_upnphttp(h);
+  async_write(h->sock,
+              boost::asio::const_buffer(header->data(), header->size()),
+              // Must extend data lifetime for async
+              [header, size, self = h->shared_from_this(),
+               fd](const boost::system::error_code &ec, size_t) {
+                if (ec) {
+                  DPRINTX(E_ERROR, L_HTTP, "http send failure: {}", ec.what());
+                  close(fd);
+                } else {
+                  self->send_file(fd, 0, size - 1);
+                }
+              });
 }
 
-static void SendResp_thumbnail(struct upnphttp *h, char *object) {
-  char header[512];
+static void SendResp_thumbnail(struct upnphttp *h, const char *object) {
   char *path;
   long long id;
   ExifData *ed;
   ExifLoader *l;
-  struct string_s str;
 
   if (h->reqflags & (FLAG_XFERSTREAMING | FLAG_RANGE)) {
     DPRINTF(
@@ -1414,70 +1365,90 @@ static void SendResp_thumbnail(struct upnphttp *h, char *object) {
     return;
   }
 
-  INIT_STR(str, header);
+  auto header = std::make_shared<fmt::memory_buffer>();
 
-  start_dlna_header(&str, 200, "Interactive", "image/jpeg");
-  strcatf(&str,
-          "Content-Length: %jd\r\n"
-          "contentFeatures.dlna.org: DLNA.ORG_PN=JPEG_TN;DLNA.ORG_CI=1\r\n\r\n",
-          (intmax_t)ed->size);
+  start_dlna_header(*header, 200, "Interactive", "image/jpeg");
+  fmt::format_to(std::back_inserter(*header),
+                 FMT_STRING("Content-Length: {}\r\n"
+                            "contentFeatures.dlna.org: "
+                            "DLNA.ORG_PN=JPEG_TN;DLNA.ORG_CI=1\r\n\r\n"),
+                 ed->size);
 
-  if (send_data(h, str.data, str.off, MSG_MORE) == 0) {
-    if (h->req_command != EHead)
-      send_data(h, (char *)ed->data, ed->size, 0);
+  auto write_completion = [header, ed, self = h->shared_from_this()](
+                              const boost::system::error_code &ec, size_t) {
+    exif_data_unref(ed);
+    if (ec) {
+      DPRINTX(E_ERROR, L_HTTP, "http send failure: {}", ec.what());
+    }
+  };
+
+  if (h->req_command != EHead) {
+    async_write(
+        h->sock,
+        std::array{boost::asio::const_buffer(header->data(), header->size()),
+                   boost::asio::const_buffer(ed->data, ed->size)},
+        write_completion);
+  } else {
+    async_write(h->sock,
+                boost::asio::const_buffer(header->data(), header->size()),
+                write_completion);
   }
-  exif_data_unref(ed);
-  CloseSocket_upnphttp(h);
 }
 
-static void SendResp_resizedimg(struct upnphttp *h, char *object) {
-  char header[512];
+static void SendResp_resizedimg(struct upnphttp *h, const char *ro_object) {
+  auto header = std::make_shared<fmt::memory_buffer>();
   char buf[128];
-  struct string_s str;
-  char **result;
+  char **transient_result;
   char dlna_pn[22];
   uint32_t dlna_flags = DLNA_FLAG_DLNA_V1_5 | DLNA_FLAG_HTTP_STALLING |
                         DLNA_FLAG_TM_B | DLNA_FLAG_TM_I;
-  int width = 640, height = 480, dstw, dsth, size;
+  int width = 640, height = 480, dstw, dsth;
   int srcw, srch;
-  unsigned char *data = NULL;
-  char *path, *file_path = NULL;
-  char *resolution = NULL;
+  std::shared_ptr<jpeg_buffer> data;
+  char *path;
+  std::string file_path;
+  std::string resolution;
   char *key, *val;
   char *saveptr, *item = NULL;
   int rotate = 0;
   int pixw = 0, pixh = 0;
   long long id;
   int rows = 0, chunked, ret;
-  image_s *imsrc = NULL, *imdst = NULL;
+  std::shared_ptr<image_s> imsrc, imdst;
   int scale = 1;
   const char *tmode;
 
-  id = strtoll(object, &saveptr, 10);
+  // Include NULL terminator
+  std::vector<char> object(ro_object, ro_object + strlen(ro_object) + 1);
+
+  id = strtoll(object.data(), &saveptr, 10);
   snprintf(buf, sizeof(buf),
            "SELECT PATH, RESOLUTION, ROTATION from DETAILS where ID = '%lld'",
            (long long)id);
-  ret = sql_get_table(db, buf, &result, &rows, NULL);
+  ret = sql_get_table(db, buf, &transient_result, &rows, NULL);
   if (ret != SQLITE_OK) {
     Send500(h);
     return;
   }
   if (rows) {
-    file_path = result[3];
-    resolution = result[4];
-    if (result[5])
-      rotate = atoi(result[5]);
+    file_path = transient_result[3] ? transient_result[3] : "";
+    resolution = transient_result[4] ? transient_result[4] : "";
+    if (transient_result[5])
+      rotate = atoi(transient_result[5]);
   }
-  if (!file_path || !resolution || (access(file_path, F_OK) != 0)) {
-    DPRINTF(E_WARN, L_HTTP, "%s not found, responding ERROR 404\n", object);
-    sqlite3_free_table(result);
+  sqlite3_free_table(transient_result);
+
+  if (file_path.empty() || resolution.empty() ||
+      (access(file_path.c_str(), F_OK) != 0)) {
+    DPRINTX(E_WARN, L_HTTP, "{} not found, responding ERROR 404\n",
+            object.data());
     Send404(h);
     return;
   }
 
   if (saveptr)
     saveptr = strchr(saveptr, '?');
-  path = saveptr ? saveptr + 1 : object;
+  path = saveptr ? saveptr + 1 : object.data();
   for (item = strtok_r(path, "&,", &saveptr); item != NULL;
        item = strtok_r(NULL, "&,", &saveptr)) {
     decodeString(item, 1);
@@ -1501,47 +1472,39 @@ static void SendResp_resizedimg(struct upnphttp *h, char *object) {
     }
   }
 
-#if USE_FORK
-  pid_t newpid = 0;
-  newpid = process_fork(h->req_client);
-  if (newpid > 0) {
-    CloseSocket_upnphttp(h);
-    goto resized_error;
-  }
-#endif
   if (h->reqflags & (FLAG_XFERSTREAMING | FLAG_RANGE)) {
     DPRINTF(
         E_WARN, L_HTTP,
         "Client tried to specify transferMode as Streaming with an image!\n");
     Send406(h);
-    goto resized_error;
+    return;
   }
 
-  DPRINTF(E_INFO, L_HTTP, "Serving resized image for ObjectId: %lld [%s]\n", id,
+  DPRINTX(E_INFO, L_HTTP, "Serving resized image for ObjectId: {} [{}]", id,
           file_path);
   if (rotate)
     DPRINTF(E_DEBUG, L_HTTP, "Rotating image %d degrees\n", rotate);
   switch (rotate) {
   case 90:
-    ret = sscanf(resolution, "%dx%d", &srch, &srcw);
+    ret = sscanf(resolution.c_str(), "%dx%d", &srch, &srcw);
     rotate = ROTATE_90;
     break;
   case 270:
-    ret = sscanf(resolution, "%dx%d", &srch, &srcw);
+    ret = sscanf(resolution.c_str(), "%dx%d", &srch, &srcw);
     rotate = ROTATE_270;
     break;
   case 180:
-    ret = sscanf(resolution, "%dx%d", &srcw, &srch);
+    ret = sscanf(resolution.c_str(), "%dx%d", &srcw, &srch);
     rotate = ROTATE_180;
     break;
   default:
-    ret = sscanf(resolution, "%dx%d", &srcw, &srch);
+    ret = sscanf(resolution.c_str(), "%dx%d", &srcw, &srch);
     rotate = ROTATE_NONE;
     break;
   }
   if (ret != 2) {
     Send500(h);
-    goto resized_error;
+    return;
   }
   /* Figure out the best destination resolution we can use */
   dstw = width;
@@ -1574,82 +1537,98 @@ static void SendResp_resizedimg(struct upnphttp *h, char *object) {
   else if (srcw >> 2 >= dstw && srch >> 2 >= dsth)
     scale = 2;
 
-  INIT_STR(str, header);
-
-#if USE_FORK
-  if ((h->reqflags & FLAG_XFERBACKGROUND) &&
-      (setpriority(PRIO_PROCESS, 0, 19) == 0))
-    tmode = "Background";
-  else
-#endif
-    tmode = "Interactive";
-  start_dlna_header(&str, 200, tmode, "image/jpeg");
-  strcatf(
-      &str,
-      "contentFeatures.dlna.org: %sDLNA.ORG_CI=1;DLNA.ORG_FLAGS=%08X%024X\r\n",
-      dlna_pn, dlna_flags, 0);
+  tmode = "Interactive";
+  start_dlna_header(*header, 200, tmode, "image/jpeg");
+  fmt::format_to(std::back_inserter(*header),
+                 FMT_STRING("contentFeatures.dlna.org: "
+                            "{}DLNA.ORG_CI=1;DLNA.ORG_FLAGS={:08X}{:024X}\r\n"),
+                 dlna_pn, dlna_flags, 0);
 
   if (strcmp(h->HttpVer, "HTTP/1.0") == 0) {
     chunked = 0;
-    imsrc = image_new_from_jpeg(file_path, 1, NULL, 0, scale, rotate);
+    imsrc = image_new_from_jpeg(file_path.c_str(), 1, NULL, 0, scale, rotate);
   } else {
     chunked = 1;
-    strcatf(&str, "Transfer-Encoding: chunked\r\n\r\n");
+    fmt::format_to(std::back_inserter(*header),
+                   FMT_STRING("Transfer-Encoding: chunked\r\n\r\n"));
   }
 
   if (!chunked) {
     if (!imsrc) {
-      DPRINTF(E_WARN, L_HTTP, "Unable to open image %s!\n", file_path);
+      DPRINTX(E_WARN, L_HTTP, "Unable to open image {}!", file_path);
       Send500(h);
-      goto resized_error;
+      return;
     }
 
-    imdst = image_resize(imsrc, dstw, dsth);
-    data = image_save_to_jpeg_buf(imdst, &size);
+    imdst = image_resize(imsrc.get(), dstw, dsth);
+    data = image_save_to_jpeg_buf(imdst.get());
 
-    strcatf(&str, "Content-Length: %d\r\n\r\n", size);
+    fmt::format_to(std::back_inserter(*header),
+                   FMT_STRING("Content-Length: {}\r\n\r\n"), data->size);
   }
 
-  if ((send_data(h, str.data, str.off, 0) == 0) && (h->req_command != EHead)) {
-    if (chunked) {
-      imsrc = image_new_from_jpeg(file_path, 1, NULL, 0, scale, rotate);
-      if (!imsrc) {
-        DPRINTF(E_WARN, L_HTTP, "Unable to open image %s!\n", file_path);
-        Send500(h);
-        goto resized_error;
-      }
-      imdst = image_resize(imsrc, dstw, dsth);
-      data = image_save_to_jpeg_buf(imdst, &size);
+  async_write(
+      h->sock, boost::asio::const_buffer(header->data(), header->size()),
+      [self = h->shared_from_this(), header, data, imsrc, imdst, chunked,
+       file_path, scale, rotate, dstw,
+       dsth](const boost::system::error_code &ec, size_t) {
+        if (ec) {
+          DPRINTX(E_ERROR, L_HTTP, "http send failure: {}", ec.what());
+        } else {
+          if (chunked) {
+            auto new_imsrc = image_new_from_jpeg(file_path.c_str(), 1, NULL, 0,
+                                                 scale, rotate);
+            if (!new_imsrc) {
+              DPRINTX(E_WARN, L_HTTP, "Unable to open image {}!", file_path);
+              Send500(self.get());
+              return;
+            }
 
-      ret = sprintf(buf, "%x\r\n", size);
-      send_data(h, buf, ret, MSG_MORE);
-      send_data(h, (char *)data, size, MSG_MORE);
-      send_data(h, "\r\n0\r\n\r\n", 7, 0);
-    } else {
-      send_data(h, (char *)data, size, 0);
-    }
-  }
-  DPRINTF(E_INFO, L_HTTP, "Done serving %s\n", file_path);
-  if (imsrc)
-    image_free(imsrc);
-  if (imdst)
-    image_free(imdst);
-  CloseSocket_upnphttp(h);
-resized_error:
-  sqlite3_free_table(result);
-#if USE_FORK
-  if (newpid == 0)
-    _exit(0);
-#endif
+            auto new_imdst = image_resize(new_imsrc.get(), dstw, dsth);
+            auto new_data = image_save_to_jpeg_buf(new_imdst.get());
+
+            header->clear();
+            fmt::format_to(std::back_inserter(*header), FMT_STRING("{:x}\r\n"),
+                           new_data->size);
+
+            async_write(
+                self->sock,
+                std::array{
+                    boost::asio::const_buffer(header->data(), header->size()),
+                    boost::asio::const_buffer(new_data->data, new_data->size),
+                    boost::asio::const_buffer("\r\n0\r\n\r\n", 7)},
+                [self, header, new_data,
+                 file_path](const boost::system::error_code &ec, size_t) {
+                  if (ec) {
+                    DPRINTX(E_ERROR, L_HTTP, "http send failure: {}",
+                            ec.what());
+                  } else {
+                    DPRINTX(E_INFO, L_HTTP, "Done serving {}", file_path);
+                  }
+                });
+          } else {
+            async_write(
+                self->sock, boost::asio::const_buffer(data->data, data->size),
+                [self, data, file_path](const boost::system::error_code &ec,
+                                        size_t) {
+                  if (ec) {
+                    DPRINTX(E_ERROR, L_HTTP, "http send failure: {}",
+                            ec.what());
+                  } else {
+                    DPRINTX(E_INFO, L_HTTP, "Done serving {}", file_path);
+                  }
+                });
+          }
+        }
+      });
 }
 
-static void SendResp_dlnafile(struct upnphttp *h, char *object) {
-  char header[1024];
-  struct string_s str;
+static void SendResp_dlnafile(struct upnphttp *h, const char *object) {
+  auto header = std::make_shared<fmt::memory_buffer>();
   char buf[128];
   char **result;
   int rows, ret;
-  off_t total, offset, size;
+  off_t total, size;
   int64_t id;
   int sendfh;
   uint32_t dlna_flags =
@@ -1665,10 +1644,6 @@ static void SendResp_dlnafile(struct upnphttp *h, char *object) {
     char mime[32];
     char dlna[96];
   } last_file{};
-#if USE_FORK
-  pid_t newpid = 0;
-#endif
-
   id = strtoll(object, NULL, 10);
   if (cflags & FLAG_MS_PFS) {
     if (strstr(object, "?albumArt=true")) {
@@ -1732,14 +1707,6 @@ static void SendResp_dlnafile(struct upnphttp *h, char *object) {
       last_file.dlna[0] = '\0';
     sqlite3_free_table(result);
   }
-#if USE_FORK
-  newpid = process_fork(h->req_client);
-  if (newpid > 0) {
-    CloseSocket_upnphttp(h);
-    return;
-  }
-#endif
-
   DPRINTF(E_INFO, L_HTTP, "Serving DetailID: %lld [%s]\n", (long long)id,
           last_file.path);
 
@@ -1749,14 +1716,14 @@ static void SendResp_dlnafile(struct upnphttp *h, char *object) {
           E_WARN, L_HTTP,
           "Client tried to specify transferMode as Streaming with an image!\n");
       Send406(h);
-      goto error;
+      return;
     }
   } else if (h->reqflags & FLAG_XFERINTERACTIVE) {
     if (h->reqflags & FLAG_REALTIMEINFO) {
       DPRINTF(E_WARN, L_HTTP,
               "Bad realTimeInfo flag with Interactive request!\n");
       Send400(h);
-      goto error;
+      return;
     }
     if (strncmp(last_file.mime, "image", 5) != 0) {
       DPRINTF(E_WARN, L_HTTP,
@@ -1766,37 +1733,29 @@ static void SendResp_dlnafile(struct upnphttp *h, char *object) {
        * and I don't see them fixing this bug any time soon. */
       if (!(cflags & FLAG_SAMSUNG) || GETFLAG(DLNA_STRICT_MASK)) {
         Send406(h);
-        goto error;
+        return;
       }
     }
   }
 
-  offset = h->req_RangeStart;
+  off_t offset = h->req_RangeStart;
   sendfh = _open_file(last_file.path);
   if (sendfh < 0) {
     if (sendfh == -403)
       Send403(h);
     else
       Send404(h);
-    goto error;
+    return;
   }
   size = lseek(sendfh, 0, SEEK_END);
   lseek(sendfh, 0, SEEK_SET);
 
-  INIT_STR(str, header);
-
-#if USE_FORK
-  if ((h->reqflags & FLAG_XFERBACKGROUND) &&
-      (setpriority(PRIO_PROCESS, 0, 19) == 0))
-    tmode = "Background";
-  else
-#endif
-      if (strncmp(last_file.mime, "image", 5) == 0)
+  if (strncmp(last_file.mime, "image", 5) == 0)
     tmode = "Interactive";
   else
     tmode = "Streaming";
 
-  start_dlna_header(&str, (h->reqflags & FLAG_RANGE ? 206 : 200), tmode,
+  start_dlna_header(*header, (h->reqflags & FLAG_RANGE ? 206 : 200), tmode,
                     last_file.mime);
 
   if (h->reqflags & FLAG_RANGE) {
@@ -1807,25 +1766,25 @@ static void SendResp_dlnafile(struct upnphttp *h, char *object) {
       DPRINTF(E_WARN, L_HTTP, "Specified range was invalid!\n");
       Send400(h);
       close(sendfh);
-      goto error;
+      return;
     }
     if (h->req_RangeEnd >= size) {
       DPRINTF(E_WARN, L_HTTP, "Specified range was outside file boundaries!\n");
       Send416(h);
       close(sendfh);
-      goto error;
+      return;
     }
 
     total = h->req_RangeEnd - h->req_RangeStart + 1;
-    strcatf(&str,
-            "Content-Length: %jd\r\n"
-            "Content-Range: bytes %jd-%jd/%jd\r\n",
-            (intmax_t)total, (intmax_t)h->req_RangeStart,
-            (intmax_t)h->req_RangeEnd, (intmax_t)size);
+    fmt::format_to(std::back_inserter(*header),
+                   FMT_STRING("Content-Length: {}\r\n"
+                              "Content-Range: bytes {}-{}/{}\r\n"),
+                   total, h->req_RangeStart, h->req_RangeEnd, size);
   } else {
     h->req_RangeEnd = size - 1;
     total = size;
-    strcatf(&str, "Content-Length: %jd\r\n", (intmax_t)total);
+    fmt::format_to(std::back_inserter(*header),
+                   FMT_STRING("Content-Length: {}\r\n"), total);
   }
 
   switch (*last_file.mime) {
@@ -1842,28 +1801,35 @@ static void SendResp_dlnafile(struct upnphttp *h, char *object) {
   if (h->reqflags & FLAG_CAPTION) {
     if (sql_get_int_field(db, "SELECT ID from CAPTIONS where ID = '%lld'",
                           (long long)id) > 0)
-      strcatf(&str, "CaptionInfo.sec: http://%s:%d/Captions/%lld.srt\r\n",
-              lan_addr[h->iface].str, runtime_vars.port, (long long)id);
+      fmt::format_to(
+          std::back_inserter(*header),
+          FMT_STRING("CaptionInfo.sec: http://{}:{}/Captions/{}.srt\r\n"),
+          lan_addr[h->iface].str, runtime_vars.port, id);
   }
 
-  strcatf(&str,
-          "Accept-Ranges: bytes\r\n"
-          "contentFeatures.dlna.org: "
-          "%sDLNA.ORG_OP=%02X;DLNA.ORG_CI=%X;DLNA.ORG_FLAGS=%08X%024X\r\n\r\n",
-          last_file.dlna, 1, 0, dlna_flags, 0);
+  fmt::format_to(std::back_inserter(*header),
+                 FMT_STRING("Accept-Ranges: bytes\r\n"
+                            "contentFeatures.dlna.org: "
+                            "{}DLNA.ORG_OP={:02X};DLNA.ORG_CI={:X};DLNA.ORG_"
+                            "FLAGS={:08X}{:024X}\r\n\r\n"),
+                 last_file.dlna, 1, 0, dlna_flags, 0);
 
   // DEBUG DPRINTF(E_DEBUG, L_HTTP, "RESPONSE: %s\n", str.data);
-  if (send_data(h, str.data, str.off, MSG_MORE) == 0) {
-    if (h->req_command != EHead)
-      send_file(h, sendfh, offset, h->req_RangeEnd);
-  }
-  close(sendfh);
 
-  CloseSocket_upnphttp(h);
-error:
-#if USE_FORK
-  if (newpid == 0)
-    _exit(0);
-#endif
-  return;
+  async_write(h->sock,
+              boost::asio::const_buffer(header->data(), header->size()),
+              // Must extend data lifetime for async
+              [header, offset, self = h->shared_from_this(),
+               sendfh](const boost::system::error_code &ec, size_t) {
+                if (ec) {
+                  DPRINTX(E_ERROR, L_HTTP, "http send failure: {}", ec.what());
+                  close(sendfh);
+                } else {
+                  if (self->req_command != EHead) {
+                    self->send_file(sendfh, offset, self->req_RangeEnd);
+                  } else {
+                    close(sendfh);
+                  }
+                }
+              });
 }

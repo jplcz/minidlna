@@ -49,7 +49,7 @@ static int art_cache_exists(const char *orig_path, char **cache_file) {
 
 static char *save_resized_album_art(image_s *imsrc, const char *path) {
   int dstw, dsth;
-  image_s *imdst;
+  std::shared_ptr<image_s> imdst;
   char *cache_file;
   char cache_dir[MAXPATHLEN];
 
@@ -75,8 +75,7 @@ static char *save_resized_album_art(image_s *imsrc, const char *path) {
     return NULL;
   }
 
-  cache_file = image_save_to_jpeg_file(imdst, cache_file);
-  image_free(imdst);
+  cache_file = image_save_to_jpeg_file(imdst.get(), cache_file);
 
   return cache_file;
 }
@@ -155,7 +154,7 @@ char *check_embedded_art(const char *path, uint8_t *image_data,
   char *art_path = NULL;
   char *cache_dir;
   FILE *dstfile;
-  image_s *imsrc;
+  std::shared_ptr<image_s> imsrc;
   static char last_path[PATH_MAX];
   static unsigned int last_hash = 0;
   static int last_success = 0;
@@ -200,7 +199,7 @@ char *check_embedded_art(const char *path, uint8_t *image_data,
   height = imsrc->height;
 
   if (width > 160 || height > 160) {
-    art_path = save_resized_album_art(imsrc, path);
+    art_path = save_resized_album_art(imsrc.get(), path);
   } else if (width > 0 && height > 0) {
     size_t nwritten;
     if (art_cache_exists(path, &art_path))
@@ -227,7 +226,6 @@ char *check_embedded_art(const char *path, uint8_t *image_data,
     }
   }
 end_art:
-  image_free(imsrc);
   if (!art_path) {
     DPRINTF(E_WARN, L_METADATA, "Invalid embedded album art in %s\n",
             basename((char *)path));
@@ -246,7 +244,7 @@ static char *check_for_album_file(const char *path) {
   char file[MAXPATHLEN];
   char mypath[MAXPATHLEN];
   struct album_art_name_s *album_art_name;
-  image_s *imsrc = NULL;
+  std::shared_ptr<image_s> imsrc;
   int width = 0, height = 0;
   char *art_file, *p;
   const char *dir;
@@ -308,10 +306,9 @@ check_dir:
       width = imsrc->width;
       height = imsrc->height;
       if (width > 160 || height > 160)
-        art_file = save_resized_album_art(imsrc, file);
+        art_file = save_resized_album_art(imsrc.get(), file);
       else
         art_file = strdup(file);
-      image_free(imsrc);
       return (art_file);
     }
   }

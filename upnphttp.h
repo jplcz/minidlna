@@ -56,6 +56,8 @@
 #include "config.h"
 #include "minidlnatypes.h"
 
+#include <boost/asio/ip/tcp.hpp>
+
 /* server: HTTP header returned in all HTTP responses : */
 #define MINIDLNA_SERVER_STRING                                                 \
   OS_VERSION " DLNADOC/1.50 UPnP/1.0 " SERVER_NAME "/" MINIDLNA_VERSION
@@ -76,8 +78,8 @@ enum httpCommands {
   EUnSubscribe
 };
 
-struct upnphttp : boost::intrusive::list_base_hook<> {
-  struct event ev{};
+struct upnphttp : std::enable_shared_from_this<upnphttp> {
+  boost::asio::ip::tcp::socket sock;
   struct in_addr clientaddr{}; /* client address */
   int iface = 0;
   int state = 0;
@@ -111,6 +113,26 @@ struct upnphttp : boost::intrusive::list_base_hook<> {
   uint32_t respflags = 0;
   /*int res_contentlen;*/
   /*int res_contentoff;*/ /* header length */
+
+  upnphttp(boost::asio::ip::tcp::socket s);
+  ~upnphttp();
+
+  upnphttp(const upnphttp &) = delete;
+  upnphttp &operator=(const upnphttp &) = delete;
+
+  void issue_read();
+  void handle_rx(std::size_t size);
+  void send_file(int fd, off_t offset, off_t end_offset);
+
+private:
+  bool send_next_file_chunk();
+
+private:
+  std::array<char, 2048> rx_buffer;
+  int sending_fd = -1;
+  off_t sending_offset = 0;
+  off_t sending_end_offset = 0;
+  std::vector<char> sendfile_buffer;
 };
 
 #define FLAG_TIMEOUT 0x00000001
@@ -136,13 +158,7 @@ struct upnphttp : boost::intrusive::list_base_hook<> {
 #endif
 
 /* New_upnphttp() */
-struct upnphttp *New_upnphttp(int);
-
-/* CloseSocket_upnphttp() */
-void CloseSocket_upnphttp(struct upnphttp *);
-
-/* Delete_upnphttp() */
-void Delete_upnphttp(struct upnphttp *);
+std::shared_ptr<upnphttp> New_upnphttp(boost::asio::ip::tcp::socket s);
 
 /* BuildHeader_upnphttp()
  * build the header for the HTTP Response
@@ -160,11 +176,10 @@ void BuildResp_upnphttp(struct upnphttp *, const char *, int);
 void BuildResp2_upnphttp(struct upnphttp *h, int respcode, const char *respmsg,
                          const char *body, int bodylen);
 
+void SendResp_upnphttp_and_finish(struct upnphttp *h);
+
 /* Error messages */
 void Send500(struct upnphttp *);
 void Send501(struct upnphttp *);
-
-/* SendResp_upnphttp() */
-void SendResp_upnphttp(struct upnphttp *);
 
 #endif

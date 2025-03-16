@@ -127,8 +127,7 @@ static void _SoapError(struct upnphttp *h, int errCode, const char *errDesc,
           errDesc);
   bodylen = snprintf(body, sizeof(body), resp, errCode, errDesc);
   BuildResp2_upnphttp(h, 500, "Internal Server Error", body, bodylen);
-  SendResp_upnphttp(h);
-  CloseSocket_upnphttp(h);
+  SendResp_upnphttp_and_finish(h);
 }
 
 static void BuildSendAndCloseSoapResp(struct upnphttp *h, const char *body,
@@ -159,8 +158,7 @@ static void BuildSendAndCloseSoapResp(struct upnphttp *h, const char *body,
   memcpy(h->res_buf + h->res_buflen, afterbody, sizeof(afterbody) - 1);
   h->res_buflen += sizeof(afterbody) - 1;
 
-  SendResp_upnphttp(h);
-  CloseSocket_upnphttp(h);
+  SendResp_upnphttp_and_finish(h);
 }
 
 static void GetSystemUpdateID(struct upnphttp *h, const char *action) {

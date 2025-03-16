@@ -6,12 +6,13 @@
 #define MINIDLNA_SERVICE_H
 
 #include <boost/asio.hpp>
+#include "upnp_http_service.h"
 
 /**
  * Main class for the MiniDLNA service
  */
 struct minidlna_service {
-  minidlna_service(size_t num_threads = std::thread::hardware_concurrency());
+  minidlna_service(size_t num_threads = 1U);
   ~minidlna_service();
 
   minidlna_service(const minidlna_service &) = delete;
@@ -25,6 +26,7 @@ struct minidlna_service {
 private:
   boost::asio::io_context m_io_context;
   std::vector<std::thread> m_thread_pool;
+  std::shared_ptr<upnp_http_service> m_http_server;
 };
 
 #endif // MINIDLNA_SERVICE_H

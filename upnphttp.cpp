@@ -1080,8 +1080,8 @@ void upnphttp::sendfile_next_chunk(size_t max_size) {
       break;
     }
 
-    if (n == 0) {
-      // Send finished ?
+    if (n == 0 || ec == boost::asio::error::broken_pipe) {
+      // Send finished or other side terminated connection (e.g. seek)
       break;
     }
 

@@ -888,7 +888,8 @@ static void ProcessHttpQuery_upnphttp(struct upnphttp *h) {
     } else {
       h->req_command = EHead;
     }
-    if (strcmp(ROOTDESC_PATH, HttpUrl) == 0) {
+    if (strcmp(ROOTDESC_PATH, HttpUrl) == 0 ||
+        std::string_view(HttpUrl).ends_with(ROOTDESC_PATH)) {
       /* If it's a Xbox360, we might need a special friendly_name to be
        * recognized */
       if (h->req_client && h->req_client->type->type == EXbox) {

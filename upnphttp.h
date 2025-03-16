@@ -126,6 +126,7 @@ struct upnphttp : std::enable_shared_from_this<upnphttp> {
 
 private:
   bool send_next_file_chunk();
+  void sendfile_next_chunk(size_t max_size);
 
 private:
   std::array<char, 2048> rx_buffer;
@@ -133,6 +134,7 @@ private:
   off_t sending_offset = 0;
   off_t sending_end_offset = 0;
   std::vector<char> sendfile_buffer;
+  bool try_sendfile = true;
 };
 
 #define FLAG_TIMEOUT 0x00000001

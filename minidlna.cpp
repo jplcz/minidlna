@@ -1074,7 +1074,7 @@ int service_main(int argc, char **argv) {
   // This starts worker threads.
   // Later main thread will just switch to ASIO,
   // instead of select event loop
-  minidlna_service service;
+  minidlna_service service(std::thread::hardware_concurrency());
 
   /* main loop */
   while (!quitting) {
@@ -1145,7 +1145,7 @@ int service_main(int argc, char **argv) {
      * and if there is an active HTTP connection, at most once every 2 seconds
      */
     if (/* !upnphttphead.empty()  && */ (timeofday.tv_sec >=
-                                       (lastupdatetime + 2))) {
+                                         (lastupdatetime + 2))) {
       if (GETFLAG(SCANNING_MASK)) {
         time_t dbtime = _get_dbtime();
         if (dbtime != lastdbtime) {

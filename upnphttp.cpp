@@ -80,6 +80,7 @@
 #include "upnphttp.h"
 #include "upnpsoap.h"
 #include "utils.h"
+#include <boost/algorithm/string/replace.hpp>
 #include <boost/asio/write.hpp>
 #include <libexif/exif-loader.h>
 
@@ -1053,13 +1054,90 @@ void upnphttp::send_file(int fd, off_t offset, off_t end_offset) {
   sending_offset = offset;
   sending_end_offset = end_offset;
   sendfile_buffer.resize(MIN_BUFFER_SIZE);
+  try_sendfile = true;
   while (send_next_file_chunk())
     ;
+}
+
+void upnphttp::sendfile_next_chunk(size_t max_size) {
+  for (;;) {
+    errno = 0;
+    ssize_t n = sys_sendfile(sock.native_handle(), sending_fd, &sending_offset,
+                             max_size);
+
+    auto ec = boost::system::error_code(
+        n < 0 ? errno : 0, boost::asio::error::get_system_category());
+
+    if (ec == boost::asio::error::interrupted)
+      continue;
+
+    // Check if we need to run the operation again.
+    if (ec == boost::asio::error::would_block ||
+        ec == boost::asio::error::try_again) {
+      // We have to wait for the socket to become ready again
+      send_next_file_chunk();
+      break;
+    }
+
+    if (n == 0) {
+      // Send finished ?
+      break;
+    }
+
+    if (ec == boost::system::errc::invalid_argument ||
+        ec == boost::system::error_code(EOVERFLOW,
+                                        boost::system::generic_category())) {
+      DPRINTX(E_WARN, L_HTTP,
+              "sendfile failed. fall back to file upload :: error {}",
+              ec.what());
+      try_sendfile = false;
+    }
+
+    if (ec) {
+      DPRINTX(E_ERROR, L_HTTP, "write wait error :: error {}", ec.what());
+      break;
+    }
+
+    send_next_file_chunk();
+    break;
+  }
 }
 
 bool upnphttp::send_next_file_chunk() {
   if (sending_offset >= sending_end_offset)
     return false;
+
+  if (try_sendfile) {
+    if (!sock.native_non_blocking()) {
+      boost::system::error_code ec;
+      sock.native_non_blocking(true, ec);
+      if (ec) {
+        DPRINTX(E_ERROR, L_HTTP,
+                "can't change socket to non-blocking mode :: error {}",
+                ec.what());
+        return false;
+      }
+    }
+
+    sock.async_wait(
+        boost::asio::ip::tcp::socket::wait_write,
+        [self = this->shared_from_this()](const boost::system::error_code &ec) {
+          if (ec) {
+            DPRINTX(E_ERROR, L_HTTP, "write wait error :: error {}", ec.what());
+          } else {
+            const size_t send_size =
+                (((self->sending_end_offset - self->sending_offset) <
+                  MAX_BUFFER_SIZE)
+                     ? (self->sending_end_offset - self->sending_offset + 1)
+                     : MAX_BUFFER_SIZE);
+
+            self->sendfile_next_chunk(send_size);
+          }
+        });
+
+    return false;
+  }
+
   const off_t send_size =
       (((sending_end_offset - sending_offset) < MIN_BUFFER_SIZE)
            ? (sending_end_offset - sending_offset + 1)
@@ -1626,7 +1704,6 @@ static void SendResp_resizedimg(struct upnphttp *h, const char *ro_object) {
 static void SendResp_dlnafile(struct upnphttp *h, const char *object) {
   auto header = std::make_shared<fmt::memory_buffer>();
   char buf[128];
-  char **result;
   int rows, ret;
   off_t total, size;
   int64_t id;
@@ -1637,12 +1714,12 @@ static void SendResp_dlnafile(struct upnphttp *h, const char *object) {
   const char *tmode;
   enum client_types ctype =
       h->req_client ? h->req_client->type->type : EUnknownClient;
-  static struct {
+  thread_local struct {
     int64_t id;
     enum client_types client;
-    char path[PATH_MAX];
-    char mime[32];
-    char dlna[96];
+    std::string path;
+    std::string mime;
+    std::string dlna;
   } last_file{};
   id = strtoll(object, NULL, 10);
   if (cflags & FLAG_MS_PFS) {
@@ -1662,56 +1739,59 @@ static void SendResp_dlnafile(struct upnphttp *h, const char *object) {
     snprintf(buf, sizeof(buf),
              "SELECT PATH, MIME, DLNA_PN from DETAILS where ID = '%lld'",
              (long long)id);
+    char **result;
     ret = sql_get_table(db, buf, &result, &rows, NULL);
     if ((ret != SQLITE_OK)) {
-      DPRINTF(E_ERROR, L_HTTP, "Didn't find valid file for %lld!\n",
-              (long long)id);
+      DPRINTX(E_ERROR, L_HTTP, "Didn't find valid file for {}!", id);
       Send500(h);
       return;
     }
     if (!rows || !result[3] || !result[4]) {
-      DPRINTF(E_WARN, L_HTTP, "%s not found, responding ERROR 404\n", object);
+      DPRINTX(E_WARN, L_HTTP, "{} not found, responding ERROR 404", object);
       sqlite3_free_table(result);
       Send404(h);
       return;
     }
     /* Cache the result */
+    last_file = {};
     last_file.id = id;
     last_file.client = ctype;
-    strncpy(last_file.path, result[3], sizeof(last_file.path) - 1);
+    last_file.path = result[3];
+
     if (result[4]) {
-      strncpy(last_file.mime, result[4], sizeof(last_file.mime) - 1);
+      last_file.mime = result[4];
       /* From what I read, Samsung TV's expect a [wrong] MIME type of x-mkv. */
-      if (cflags & FLAG_SAMSUNG) {
-        if (strcmp(last_file.mime + 6, "x-matroska") == 0)
-          strcpy(last_file.mime + 8, "mkv");
-        /* Samsung TV's such as the A750 can natively support many
-           Xvid/DivX AVI's however, the DLNA server needs the
-           mime type to say video/mpeg */
-        else if (ctype == ESamsungSeriesA &&
-                 strcmp(last_file.mime + 6, "x-msvideo") == 0)
-          strcpy(last_file.mime + 6, "mpeg");
-      }
-      /* ... and Sony BDP-S370 won't play MKV unless we pretend it's a DiVX file
-       */
-      else if (ctype == ESonyBDP) {
-        if (strcmp(last_file.mime + 6, "x-matroska") == 0 ||
-            strcmp(last_file.mime + 6, "mpeg") == 0)
-          strcpy(last_file.mime + 6, "divx");
+      if (last_file.mime.size() > 6) {
+        if (cflags & FLAG_SAMSUNG) {
+          if (last_file.mime.ends_with("x-matroska") == 0)
+            boost::algorithm::replace_first(last_file.mime, "matroska", "mkv");
+          /* Samsung TV's such as the A750 can natively support many
+             Xvid/DivX AVI's however, the DLNA server needs the
+             mime type to say video/mpeg */
+          else if (ctype == ESamsungSeriesA &&
+                   last_file.mime.ends_with("x-msvideo"))
+            boost::algorithm::replace_first(last_file.mime, "x-msvideo",
+                                            "mpeg");
+        }
+        /* ... and Sony BDP-S370 won't play MKV unless we pretend it's a DiVX
+         * file
+         */
+        else if (ctype == ESonyBDP) {
+          if (last_file.mime.ends_with("x-matroska") == 0 ||
+              last_file.mime.ends_with("mpeg") == 0) {
+            last_file.mime.replace(6, last_file.mime.size() - 6, "divx");
+          }
+        }
       }
     }
     if (result[5])
-      snprintf(last_file.dlna, sizeof(last_file.dlna), "DLNA.ORG_PN=%s;",
-               result[5]);
-    else
-      last_file.dlna[0] = '\0';
+      last_file.dlna = fmt::format("DLNA.ORG_PN={};", result[5]);
     sqlite3_free_table(result);
   }
-  DPRINTF(E_INFO, L_HTTP, "Serving DetailID: %lld [%s]\n", (long long)id,
-          last_file.path);
+  DPRINTX(E_INFO, L_HTTP, "Serving DetailID: {} [{}]", id, last_file.path);
 
   if (h->reqflags & FLAG_XFERSTREAMING) {
-    if (strncmp(last_file.mime, "image", 5) == 0) {
+    if (last_file.mime.starts_with("image")) {
       DPRINTF(
           E_WARN, L_HTTP,
           "Client tried to specify transferMode as Streaming with an image!\n");
@@ -1725,7 +1805,7 @@ static void SendResp_dlnafile(struct upnphttp *h, const char *object) {
       Send400(h);
       return;
     }
-    if (strncmp(last_file.mime, "image", 5) != 0) {
+    if (last_file.mime.starts_with("image")) {
       DPRINTF(E_WARN, L_HTTP,
               "Client tried to specify transferMode as Interactive without an "
               "image!\n");
@@ -1739,7 +1819,7 @@ static void SendResp_dlnafile(struct upnphttp *h, const char *object) {
   }
 
   off_t offset = h->req_RangeStart;
-  sendfh = _open_file(last_file.path);
+  sendfh = _open_file(last_file.path.c_str());
   if (sendfh < 0) {
     if (sendfh == -403)
       Send403(h);
@@ -1750,7 +1830,7 @@ static void SendResp_dlnafile(struct upnphttp *h, const char *object) {
   size = lseek(sendfh, 0, SEEK_END);
   lseek(sendfh, 0, SEEK_SET);
 
-  if (strncmp(last_file.mime, "image", 5) == 0)
+  if (last_file.mime.starts_with("image"))
     tmode = "Interactive";
   else
     tmode = "Streaming";
@@ -1787,7 +1867,7 @@ static void SendResp_dlnafile(struct upnphttp *h, const char *object) {
                    FMT_STRING("Content-Length: {}\r\n"), total);
   }
 
-  switch (*last_file.mime) {
+  switch (last_file.mime.empty() ? 0 : last_file.mime[0]) {
   case 'i':
     dlna_flags |= DLNA_FLAG_TM_I;
     break;
